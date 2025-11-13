@@ -552,7 +552,7 @@ include_once "../includes/header.php";
                     <div class="icon">🐱</div>
                     <h3>No Adoption Listings Yet</h3>
                     <p>You haven't listed any cats for adoption. Start helping cats find their forever homes!</p>
-                    <a href="post-adoption-cat.php" class="btn btn-primary">Post Adoption Cat</a>
+                    <a href="add-adoption-cat.php" class="btn btn-primary">Post Adoption Cat</a>
                 </div>
             <?php else: ?>
                 <div class="stats-grid">
@@ -642,7 +642,7 @@ include_once "../includes/header.php";
                     <div class="icon">💰</div>
                     <h3>No Selling Listings Yet</h3>
                     <p>You haven't listed any pets for sale. Start selling today!</p>
-                    <a href="post-pet.php" class="btn btn-primary">Post Pet for Sale</a>
+                    <a href="sell.php" class="btn btn-primary">Post Pet for Sale</a>
                 </div>
             <?php else: ?>
                 <div class="stats-grid">
