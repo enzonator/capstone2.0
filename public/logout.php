@@ -7,6 +7,6 @@ $_SESSION = [];
 // Destroy the session
 session_destroy();
 
-// Redirect to login page (or homepage if you prefer)
-header("Location: /catshop/public/login.php");
+// Redirect to login page using relative path
+header("Location: login.php");
 exit();

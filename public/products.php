@@ -3,9 +3,6 @@ session_start();
 require_once "../config/db.php";
 include_once "../includes/header.php";
 
-// Logged-in user
-$user_id = $_SESSION['user_id'] ?? null;
-
 // Get filter/sort parameters
 $breed = $_GET['breed'] ?? '';
 $gender = $_GET['gender'] ?? '';
@@ -69,18 +66,6 @@ if (!empty($params)) {
 $stmt->execute();
 $result = $stmt->get_result();
 $pets = $result->fetch_all(MYSQLI_ASSOC);
-
-// Fetch wishlist items for current user
-$wishlist = [];
-if ($user_id) {
-    $wishQuery = $conn->prepare("SELECT pet_id FROM wishlist WHERE user_id = ?");
-    $wishQuery->bind_param("i", $user_id);
-    $wishQuery->execute();
-    $wishResult = $wishQuery->get_result();
-    while ($row = $wishResult->fetch_assoc()) {
-        $wishlist[] = $row['pet_id'];
-    }
-}
 ?>
 
 <style>
@@ -304,40 +289,6 @@ body {
     opacity: 1;
 }
 
-.product-card .wishlist-form {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-}
-
-.product-card .wishlist-btn {
-    background: rgba(255, 255, 255, 0.95);
-    border: 2px solid #F4E4D7;
-    border-radius: 50%;
-    padding: 10px;
-    cursor: pointer;
-    font-size: 20px;
-    transition: all 0.3s ease;
-    z-index: 10;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.product-card .wishlist-btn:hover {
-    transform: scale(1.15);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-    background: #FFFFFF;
-}
-
-.product-card .wishlist-btn.hearted {
-    background: linear-gradient(135deg, #FFE8E8 0%, #FFD5D5 100%);
-    border-color: #FFB8B8;
-}
-
 .product-card .info {
     padding: 20px;
     background: linear-gradient(to bottom, #FFFBF7 0%, #FFF8F0 100%);
@@ -514,16 +465,6 @@ body {
                 <?php foreach ($pets as $pet): ?>
                     <div class="product-card">
                         <div class="image-wrapper">
-                            <!-- Wishlist Button (only for logged in users) -->
-                            <?php if ($user_id): ?>
-                                <form method="POST" action="wishlist.php" class="wishlist-form">
-                                    <input type="hidden" name="pet_id" value="<?= $pet['id']; ?>">
-                                    <button type="submit" class="wishlist-btn <?= in_array($pet['id'], $wishlist) ? 'hearted' : ''; ?>" title="Add to Wishlist">
-                                        <?= in_array($pet['id'], $wishlist) ? "❤️" : "🤍"; ?>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-
                             <img src="../uploads/<?= htmlspecialchars($pet['image1'] ?? 'no-image.png'); ?>" 
                                  alt="<?= htmlspecialchars($pet['name']); ?>" class="first">
                             <?php if (!empty($pet['image2'])): ?>

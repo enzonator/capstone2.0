@@ -435,93 +435,6 @@ if (isset($_SESSION['user_id'])) {
         line-height: 1.7;
     }
 
-    /* Testimonials */
-    .testimonials {
-        background: linear-gradient(135deg, #EADDCA 0%, #d4c4b0 100%);
-        padding: 50px 30px;
-        border-radius: 20px;
-        margin-top: 20px;
-    }
-
-    .testimonials h3 {
-        text-align: center;
-        font-size: 28px;
-        font-weight: 700;
-        color: #5a4a3a;
-        margin-bottom: 40px;
-    }
-
-    .testimonial-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 25px;
-    }
-
-    .testimonial-card {
-        background: #fff;
-        padding: 30px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(90, 74, 58, 0.1);
-        position: relative;
-    }
-
-    .testimonial-quote {
-        font-size: 48px;
-        color: #EADDCA;
-        position: absolute;
-        top: 10px;
-        left: 20px;
-        line-height: 1;
-    }
-
-    .testimonial-text {
-        font-size: 15px;
-        color: #5a4a3a;
-        line-height: 1.7;
-        margin-bottom: 20px;
-        font-style: italic;
-        padding-top: 25px;
-    }
-
-    .testimonial-author {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        padding-top: 15px;
-        border-top: 2px solid #EADDCA;
-    }
-
-    .author-avatar {
-        width: 50px;
-        height: 50px;
-        background: #EADDCA;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        font-weight: 600;
-        color: #5a4a3a;
-    }
-
-    .author-info h4 {
-        font-size: 16px;
-        font-weight: 600;
-        color: #5a4a3a;
-        margin-bottom: 3px;
-    }
-
-    .author-info p {
-        font-size: 13px;
-        color: #8d7d6d;
-    }
-
-    .rating {
-        color: #e67e22;
-        font-size: 16px;
-        margin-top: 10px;
-    }
-
     /* Responsive */
     @media (max-width: 1200px) {
         .pet-grid {
@@ -598,10 +511,6 @@ if (isset($_SESSION['user_id'])) {
             grid-template-columns: 1fr;
         }
 
-        .testimonial-grid {
-            grid-template-columns: 1fr;
-        }
-
         .why-choose-us {
             padding: 60px 20px;
         }
@@ -645,12 +554,12 @@ if (isset($_SESSION['user_id'])) {
 
     <!-- Slide 4 -->
     <div class="carousel-slide">
-        <img src="../uploads/carousel4.avif" alt="Join Our Community">
+        <img src="../uploads/carousel4.avif" alt="Get Verified Now">
         <div class="carousel-overlay"></div>
         <div class="carousel-content">
-            <h1>Join Our Community</h1>
-            <p>Thousands of happy pet owners have found their companions here.</p>
-            <a href="register.php" class="carousel-btn">Sign Up Now</a>
+            <h1>Get Verified Now 🛡️</h1>
+            <p>Verify your account to unlock all features and gain trust in our community.</p>
+            <a href="verify.php" class="carousel-btn">Verify My Account</a>
         </div>
     </div>
 
@@ -713,11 +622,11 @@ function showSlide(n) {
 }
 </script>
 
-<!-- Featured Pets -->
+<!-- Featured Pets for Selling -->
 <section class="featured-pets">
     <div class="container">
         <div class="section-header">
-            <h2>🐾 Newly Listed Pets</h2>
+            <h2>🛒 Newly Listed Pets for Selling</h2>
             <p>Hand-picked furry friends looking for a loving home</p>
         </div>
 
@@ -781,6 +690,65 @@ function showSlide(n) {
     </div>
 </section>
 
+<!-- Featured Pets for Adoption -->
+<section class="featured-pets">
+    <div class="container">
+        <div class="section-header">
+            <h2>🏡 Newly Listed Pets for Adoption</h2>
+            <p>Give these loving cats a forever home</p>
+        </div>
+
+        <div class="pet-grid">
+            <?php
+            // Fetch AVAILABLE adoption cats
+            $adoptionResult = $conn->query("
+                SELECT ac.id, ac.name, ac.breed, ac.age, ac.gender, ac.adoption_fee, 
+                       ac.image_url, ac.status, u.username
+                FROM adoption_cats ac
+                LEFT JOIN users u ON ac.user_id = u.id
+                WHERE ac.status IN ('Available', 'Pending')
+                ORDER BY ac.created_at DESC
+                LIMIT 10
+            ");
+
+            if ($adoptionResult && $adoptionResult->num_rows > 0) {
+                while ($cat = $adoptionResult->fetch_assoc()):
+                    $image = $cat['image_url'] ?: 'no-image.png';
+            ?>
+            <div class="pet-card">
+                <img src="../uploads/<?php echo htmlspecialchars($image); ?>" 
+                     alt="<?php echo htmlspecialchars($cat['name']); ?>"
+                     class="pet-card-image">
+                <div class="pet-card-content">
+                    <h3><?php echo htmlspecialchars($cat['name']); ?></h3>
+                    <p class="pet-seller">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <?php echo htmlspecialchars($cat['username'] ?? 'Unknown'); ?>
+                    </p>
+                    <p class="pet-price">Adoption Fee: ₱<?php echo number_format($cat['adoption_fee'], 2); ?></p>
+                    <a href="adoption-cat-details.php?id=<?php echo $cat['id']; ?>" class="view-btn">
+                        View Details
+                    </a>
+                </div>
+            </div>
+            <?php
+                endwhile;
+            } else {
+                echo '<div class="no-pets"><p>No cats available for adoption right now. <a href="add-adoption-cat.php">List a cat for adoption</a>!</p></div>';
+            }
+            ?>
+        </div>
+
+        <!-- Browse More Button -->
+        <div class="browse-more-container">
+            <a href="adoption.php" class="browse-more-btn">Browse More Adoption Cats →</a>
+        </div>
+    </div>
+</section>
+
 <!-- Why Choose Us Section -->
 <section class="why-choose-us">
     <div class="container">
@@ -790,14 +758,14 @@ function showSlide(n) {
         </div>
 
         <div class="why-grid">
-            <!-- Responsible Sourcing -->
+            <!-- Verified Sellers -->
             <div class="why-card">
                 <div class="why-icon">🏆</div>
                 <h3>Verified Sellers Only</h3>
                 <p>All our sellers go through a strict verification process to ensure they meet our ethical breeding and care standards. Your pet's wellbeing is our top priority.</p>
             </div>
 
-            <!-- Health Certifications -->
+            <!-- Health Guaranteed -->
             <div class="why-card">
                 <div class="why-icon">🏥</div>
                 <h3>Health Guaranteed</h3>

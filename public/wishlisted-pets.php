@@ -11,12 +11,10 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Fetch pets in wishlist
-$sql = "SELECT p.*, 
-        (SELECT filename FROM pet_images WHERE pet_id = p.id LIMIT 1) as image1,
-        (SELECT filename FROM pet_images WHERE pet_id = p.id LIMIT 1,1) as image2
+// Fetch adoption cats in wishlist
+$sql = "SELECT ac.*
         FROM wishlist w
-        JOIN pets p ON w.pet_id = p.id
+        JOIN adoption_cats ac ON w.pet_id = ac.id
         WHERE w.user_id = ?
         ORDER BY w.created_at DESC";
 
@@ -121,7 +119,7 @@ body {
 
 .wishlist-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 24px;
 }
 
@@ -156,20 +154,7 @@ body {
     transition: all 0.4s ease;
 }
 
-.wishlist-card .image-wrapper img.second {
-    position: absolute;
-    top: 0;
-    left: 0;
-    opacity: 0;
-}
-
-.wishlist-card .image-wrapper:hover img.first {
-    opacity: 0;
-    transform: scale(1.1);
-}
-
-.wishlist-card .image-wrapper:hover img.second {
-    opacity: 1;
+.wishlist-card .image-wrapper:hover img {
     transform: scale(1.1);
 }
 
@@ -179,7 +164,7 @@ body {
 
 .wishlist-card h4 {
     margin: 0 0 12px;
-    font-size: 1.15rem;
+    font-size: 1.3rem;
     color: #5D4E37;
     font-weight: 700;
 }
@@ -203,6 +188,29 @@ body {
     color: #8B6F47;
     font-weight: 700;
     margin: 12px 0;
+}
+
+.wishlist-card .badge-container {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 10px 0;
+}
+
+.wishlist-card .mini-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+}
+
+.mini-badge.vaccinated {
+    background: #27ae60;
+}
+
+.mini-badge.neutered {
+    background: #3498db;
 }
 
 .wishlist-card a {
@@ -349,10 +357,10 @@ body {
             <div class="wishlist-header-content">
                 <h2>
                     <i class="bi bi-heart-fill"></i>
-                    My Wishlisted Pets
-                    <span class="wishlist-count"><?= count($wishlist); ?> <?= count($wishlist) === 1 ? 'Pet' : 'Pets' ?></span>
+                    My Wishlisted Adoption Cats
+                    <span class="wishlist-count"><?= count($wishlist); ?> <?= count($wishlist) === 1 ? 'Cat' : 'Cats' ?></span>
                 </h2>
-                <p>Your favorite pets all in one place</p>
+                <p>Your favorite adoption cats all in one place</p>
             </div>
         </div>
 
@@ -360,28 +368,35 @@ body {
         <div class="wishlist-content">
             <?php if (!empty($wishlist)): ?>
                 <div class="wishlist-grid">
-                    <?php foreach ($wishlist as $pet): ?>
+                    <?php foreach ($wishlist as $cat): ?>
                         <div class="wishlist-card">
                             <div class="image-wrapper">
-                                <form method="POST" action="wishlist_remove.php">
-                                    <input type="hidden" name="pet_id" value="<?= $pet['id']; ?>">
+                                <form method="POST" action="wishlist_remove_adoption.php">
+                                    <input type="hidden" name="cat_id" value="<?= $cat['id']; ?>">
                                     <button type="submit" class="remove-btn" title="Remove from Wishlist">✖</button>
                                 </form>
 
-                                <img src="../uploads/<?= htmlspecialchars($pet['image1'] ?? 'no-image.png'); ?>" 
-                                     alt="<?= htmlspecialchars($pet['name']); ?>" class="first">
-                                <?php if (!empty($pet['image2'])): ?>
-                                    <img src="../uploads/<?= htmlspecialchars($pet['image2']); ?>" 
-                                         alt="<?= htmlspecialchars($pet['name']); ?> (alternate)" class="second">
-                                <?php endif; ?>
+                                <img src="../uploads/<?= htmlspecialchars($cat['image_url'] ?? 'no-image.png'); ?>" 
+                                     alt="<?= htmlspecialchars($cat['name']); ?>">
                             </div>
                             <div class="info">
-                                <h4><?= htmlspecialchars($pet['name']); ?></h4>
-                                <p><strong><i class="bi bi-tag"></i> Type:</strong> <?= htmlspecialchars($pet['type']); ?></p>
-                                <p><strong><i class="bi bi-award"></i> Breed:</strong> <?= htmlspecialchars($pet['breed']); ?></p>
-                                <p class="price">₱<?= number_format($pet['price'], 2); ?></p>
-                                <a href="pet-details.php?id=<?= $pet['id']; ?>">
-                                    <i class="bi bi-eye"></i> View Details
+                                <h4><?= htmlspecialchars($cat['name']); ?></h4>
+                                <p><strong><i class="bi bi-award"></i> Breed:</strong> <?= htmlspecialchars($cat['breed']); ?></p>
+                                <p><strong><i class="bi bi-calendar"></i> Age:</strong> <?= htmlspecialchars($cat['age']); ?> year(s)</p>
+                                <p><strong><i class="bi bi-gender-ambiguous"></i> Gender:</strong> <?= htmlspecialchars($cat['gender']); ?></p>
+                                
+                                <div class="badge-container">
+                                    <?php if ($cat['vaccinated']): ?>
+                                        <span class="mini-badge vaccinated">✓ Vaccinated</span>
+                                    <?php endif; ?>
+                                    <?php if ($cat['neutered']): ?>
+                                        <span class="mini-badge neutered">✓ Neutered/Spayed</span>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <p class="price">₱<?= number_format($cat['adoption_fee'], 2); ?></p>
+                                <a href="adoption-form.php?cat_id=<?= $cat['id']; ?>&cat_name=<?= urlencode($cat['name']); ?>">
+                                    <i class="bi bi-heart-fill"></i> Apply to Adopt
                                 </a>
                             </div>
                         </div>
@@ -391,9 +406,9 @@ body {
                 <div class="empty-wishlist">
                     <i class="bi bi-heart"></i>
                     <h3>Your Wishlist is Empty</h3>
-                    <p>Start adding your favorite pets to keep track of them!</p>
-                    <a href="browse-pets.php">
-                        <i class="bi bi-search"></i> Browse Pets
+                    <p>Start adding your favorite adoption cats to keep track of them!</p>
+                    <a href="adoption.php">
+                        <i class="bi bi-search"></i> Browse Adoption Cats
                     </a>
                 </div>
             <?php endif; ?>

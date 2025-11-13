@@ -207,6 +207,13 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </span>
         </a>
 
+        <a href="analytics.php" class="<?= $current_page === 'analytics.php' ? 'active' : '' ?>">
+            <span class="link-content">
+                <span class="link-icon">📊</span>
+                <span>My Data Analytics</span>
+            </span>
+        </a>
+
         <a href="orders.php" class="<?= $current_page === 'orders.php' ? 'active' : '' ?>">
             <span class="link-content">
                 <span class="link-icon">🛒</span>

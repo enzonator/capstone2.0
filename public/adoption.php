@@ -3,13 +3,30 @@ session_start();
 require_once "../config/db.php";
 include_once "../includes/header.php";
 
-// Fetch available and pending cats for adoption with application counts
+// Check if user is logged in
+$user_id = $_SESSION['user_id'] ?? null;
+
+// Fetch available and pending cats for adoption with application counts and wishlist status
 $sql = "SELECT ac.*, 
-        (SELECT COUNT(*) FROM adoption_applications WHERE cat_id = ac.id) as application_count
-        FROM adoption_cats ac 
+        (SELECT COUNT(*) FROM adoption_applications WHERE cat_id = ac.id) as application_count";
+
+if ($user_id) {
+    $sql .= ", (SELECT COUNT(*) FROM wishlist WHERE user_id = ? AND pet_id = ac.id) as is_wishlisted";
+}
+
+$sql .= " FROM adoption_cats ac 
         WHERE ac.status IN ('Available', 'Pending') 
         ORDER BY ac.created_at DESC";
-$result = $conn->query($sql);
+
+if ($user_id) {
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $result = $conn->query($sql);
+}
+
 $cats = [];
 if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
@@ -269,8 +286,44 @@ if ($result && $result->num_rows > 0) {
         font-weight: bold;
     }
 
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        align-items: stretch;
+    }
+
+    .wishlist-btn {
+        padding: 15px;
+        background: white;
+        border: 2px solid #e74c3c;
+        border-radius: 10px;
+        font-size: 1.3em;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: #e74c3c;
+        flex-shrink: 0;
+        width: 55px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .wishlist-btn:hover {
+        background: #ffe5e5;
+        transform: scale(1.1);
+    }
+
+    .wishlist-btn.active {
+        background: #e74c3c;
+        color: white;
+    }
+
+    .wishlist-btn.active:hover {
+        background: #c0392b;
+    }
+
     .adopt-btn {
-        width: 100%;
+        flex: 1;
         padding: 15px;
         background: linear-gradient(135deg, #d4c4a8 0%, #c9b896 100%);
         color: #3d3020;
@@ -400,9 +453,24 @@ if ($result && $result->num_rows > 0) {
                             <strong>Adoption Fee:</strong> ₱<?php echo number_format($cat['adoption_fee'], 2); ?>
                         </div>
                         
-                        <button class="adopt-btn" onclick="openAdoptionForm(<?php echo $cat['id']; ?>, '<?php echo htmlspecialchars($cat['name'], ENT_QUOTES); ?>')">
-                            <?php echo $cat['status'] === 'Pending' ? 'Apply to Adopt (Under Review)' : 'Apply to Adopt'; ?>
-                        </button>
+                        <div class="action-buttons">
+                            <?php if ($user_id): ?>
+                                <button class="wishlist-btn <?php echo (isset($cat['is_wishlisted']) && $cat['is_wishlisted'] > 0) ? 'active' : ''; ?>" 
+                                        data-cat-id="<?php echo $cat['id']; ?>"
+                                        onclick="toggleWishlist(this, <?php echo $cat['id']; ?>)">
+                                    ♥
+                                </button>
+                            <?php else: ?>
+                                <button class="wishlist-btn" 
+                                        onclick="alert('Please log in to add cats to your wishlist'); window.location.href='login.php';">
+                                    ♥
+                                </button>
+                            <?php endif; ?>
+                            
+                            <button class="adopt-btn" onclick="openAdoptionForm(<?php echo $cat['id']; ?>, '<?php echo htmlspecialchars($cat['name'], ENT_QUOTES); ?>')">
+                                <?php echo $cat['status'] === 'Pending' ? 'Apply to Adopt (Under Review)' : 'Apply to Adopt'; ?>
+                            </button>
+                        </div>
                     </div>
                 </div>
             <?php endforeach; ?>
@@ -457,9 +525,43 @@ if ($result && $result->num_rows > 0) {
         ageFilter.addEventListener('change', filterCats);
     });
 
+    // Toggle wishlist
+    function toggleWishlist(button, catId) {
+        // Create FormData object
+        const formData = new FormData();
+        formData.append('cat_id', catId);
+
+        fetch('toggle_adoption_wishlist.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            // Check if response is ok
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response:', data); // Debug log
+            if (data.success) {
+                if (data.action === 'added') {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            } else {
+                alert(data.message || 'An error occurred');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again. Check console for details.');
+        });
+    }
+
     // Open adoption form
     function openAdoptionForm(catId, catName) {
-        // Redirect to adoption application form
         window.location.href = `adoption-form.php?cat_id=${catId}&cat_name=${encodeURIComponent(catName)}`;
     }
 </script>

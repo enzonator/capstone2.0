@@ -1,4 +1,17 @@
 <!-- sidebar.php -->
+<?php
+// Count pending verification requests
+$pending_count = 0;
+if (isset($conn)) {
+    $count_sql = "SELECT COUNT(*) as count FROM verifications WHERE status = 'Pending'";
+    $count_result = $conn->query($count_sql);
+    if ($count_result) {
+        $count_row = $count_result->fetch_assoc();
+        $pending_count = $count_row['count'];
+    }
+}
+?>
+
 <div class="sidebar">
   <div class="sidebar-header">
     <h2>Dashboard</h2>
@@ -17,6 +30,9 @@
     <a href="verify-requests.php" class="nav-item">
       <span class="nav-icon">✓</span>
       <span class="nav-text">Verify Requests</span>
+      <?php if ($pending_count > 0): ?>
+        <span class="notification-badge"><?= $pending_count ?></span>
+      <?php endif; ?>
     </a>
   </nav>
 
@@ -89,6 +105,7 @@
     border-radius: 12px;
     font-weight: 500;
     font-size: 15px;
+    position: relative;
   }
   
   .nav-icon {
@@ -112,6 +129,35 @@
   
   .nav-item:active {
     transform: translateX(2px);
+  }
+
+  /* Notification Badge */
+  .notification-badge {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+    min-width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+    animation: pulse-badge 2s ease-in-out infinite;
+    margin-left: auto;
+  }
+
+  @keyframes pulse-badge {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(220, 53, 69, 0.6);
+    }
   }
 
   .content {
