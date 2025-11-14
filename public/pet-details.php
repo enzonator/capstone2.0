@@ -56,14 +56,48 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $pet_id_post = intval($_POST['pet_id']);
 
+    // Handle Comment Submission
+    if (isset($_POST['submit_comment']) && !empty($_POST['comment_text'])) {
+        $comment_text = trim($_POST['comment_text']);
+        $parent_id = isset($_POST['parent_id']) ? intval($_POST['parent_id']) : null;
+        
+        if ($parent_id) {
+            $insertComment = "INSERT INTO pet_comments (pet_id, user_id, comment_text, parent_id, created_at) VALUES (?, ?, ?, ?, NOW())";
+            $commentStmt = $conn->prepare($insertComment);
+            $commentStmt->bind_param("iisi", $pet_id_post, $current_user_id, $comment_text, $parent_id);
+        } else {
+            $insertComment = "INSERT INTO pet_comments (pet_id, user_id, comment_text, created_at) VALUES (?, ?, ?, NOW())";
+            $commentStmt = $conn->prepare($insertComment);
+            $commentStmt->bind_param("iis", $pet_id_post, $current_user_id, $comment_text);
+        }
+        
+        if ($commentStmt->execute()) {
+            $_SESSION['comment_message'] = $parent_id ? 'Reply posted successfully!' : 'Comment posted successfully!';
+        } else {
+            $_SESSION['comment_message'] = 'Error posting comment.';
+        }
+    }
+
+    // Handle Delete Comment
+    if (isset($_POST['delete_comment'])) {
+        $comment_id = intval($_POST['comment_id']);
+        $deleteComment = "DELETE FROM pet_comments WHERE id = ? AND user_id = ?";
+        $deleteStmt = $conn->prepare($deleteComment);
+        $deleteStmt->bind_param("ii", $comment_id, $current_user_id);
+        
+        if ($deleteStmt->execute()) {
+            $_SESSION['comment_message'] = 'Comment deleted successfully!';
+        }
+        header("Location: pet-details.php?id=" . $pet_id);
+        exit();
+    }
+
     // Handle Buy Now - Check verification and redirect BEFORE any output
     if (isset($_POST['buy_now'])) {
         if ($verificationStatus == 'verified') {
-            // User is verified - redirect to checkout
             header("Location: checkout.php?pet_ids=" . $pet_id_post);
             exit();
         } else {
-            // Set session variable to show popup after page loads
             if ($verificationStatus == 'not verified') {
                 $_SESSION['show_verification_popup'] = 'not_verified';
             } elseif ($verificationStatus == 'pending') {
@@ -71,7 +105,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else {
                 $_SESSION['show_verification_popup'] = 'not_verified';
             }
-            // Redirect back to same page to show popup
             header("Location: pet-details.php?id=" . $pet_id);
             exit();
         }
@@ -138,6 +171,38 @@ if ($current_user_id) {
     $inCart = !empty($existing);
 }
 
+// Fetch comments for this pet (only parent comments)
+$commentsSql = "SELECT c.*, u.username, u.id as commenter_id 
+                FROM pet_comments c
+                JOIN users u ON c.user_id = u.id
+                WHERE c.pet_id = ? AND c.parent_id IS NULL
+                ORDER BY c.created_at DESC";
+$commentsStmt = $conn->prepare($commentsSql);
+$commentsStmt->bind_param("i", $pet_id);
+$commentsStmt->execute();
+$comments = $commentsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Fetch replies for each comment
+function getReplies($conn, $comment_id) {
+    $repliesSql = "SELECT c.*, u.username, u.id as commenter_id 
+                   FROM pet_comments c
+                   JOIN users u ON c.user_id = u.id
+                   WHERE c.parent_id = ?
+                   ORDER BY c.created_at ASC";
+    $repliesStmt = $conn->prepare($repliesSql);
+    $repliesStmt->bind_param("i", $comment_id);
+    $repliesStmt->execute();
+    return $repliesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+// Count total comments including replies
+$totalCommentsSql = "SELECT COUNT(*) as total FROM pet_comments WHERE pet_id = ?";
+$totalStmt = $conn->prepare($totalCommentsSql);
+$totalStmt->bind_param("i", $pet_id);
+$totalStmt->execute();
+$totalCommentsResult = $totalStmt->get_result()->fetch_assoc();
+$totalComments = $totalCommentsResult['total'];
+
 // Check for session messages
 $showVerificationPopup = false;
 $popupType = '';
@@ -152,6 +217,8 @@ if (isset($_SESSION['cart_message'])) {
     $cartMessage = $_SESSION['cart_message'];
     unset($_SESSION['cart_message']);
 }
+
+
 ?>
 
 <!-- SweetAlert CDN -->
@@ -375,6 +442,60 @@ document.addEventListener('DOMContentLoaded', function() {
     flex: 1;
 }
 
+/* Health Information Section */
+.health-info-section {
+    background: #e8f5e9;
+    padding: 20px;
+    border-radius: 12px;
+    border-left: 4px solid #4caf50;
+}
+
+.health-info-title {
+    color: #2d3748;
+    font-size: 18px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.health-info-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.health-info-item {
+    display: flex;
+    padding: 12px;
+    background: white;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.health-info-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.health-info-item.full-width {
+    flex-direction: column;
+    gap: 8px;
+}
+
+.health-info-label {
+    font-weight: 600;
+    color: #4a5568;
+    min-width: 150px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.health-info-value {
+    color: #2d3748;
+    flex: 1;
+    line-height: 1.6;
+}
+
 .description-box {
     background: #f5ede0;
     padding: 20px;
@@ -389,6 +510,29 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .description-box p {
+    color: #4a5568;
+    line-height: 1.6;
+}
+
+.health-status-box {
+    background: #e8f5e9;
+    padding: 20px;
+    border-radius: 12px;
+    border-left: 4px solid #4caf50;
+    margin-top: 16px;
+    display: none; /* Hidden since we moved it to health info section */
+}
+
+.health-status-box h3 {
+    color: #2d3748;
+    margin-bottom: 12px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.health-status-box p {
     color: #4a5568;
     line-height: 1.6;
 }
@@ -513,6 +657,306 @@ document.addEventListener('DOMContentLoaded', function() {
     font-style: italic;
 }
 
+/* Comments Section */
+.comments-section {
+    background: #f5ede0;
+    padding: 24px;
+    border-radius: 12px;
+    margin-top: 24px;
+}
+
+.comments-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #d4c4b0;
+}
+
+.comments-header h3 {
+    color: #2d3748;
+    font-size: 20px;
+    margin: 0;
+}
+
+.comments-count {
+    background: #c9a882;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.comment-form {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.comment-form textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e2d5c5;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.3s ease;
+}
+
+.comment-form textarea:focus {
+    outline: none;
+    border-color: #c9a882;
+}
+
+.comment-form button {
+    margin-top: 12px;
+    background: linear-gradient(135deg, #c9a882 0%, #b89968 100%);
+    color: white;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.comment-form button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(201, 168, 130, 0.4);
+}
+
+.comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.comment-item {
+    background: white;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.comment-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.comment-author {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.comment-author-icon {
+    background: linear-gradient(135deg, #c9a882 0%, #b89968 100%);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.comment-author-name {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.comment-date {
+    font-size: 12px;
+    color: #8b7a68;
+}
+
+.comment-text {
+    color: #4a5568;
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+
+.comment-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.reply-btn {
+    background: #e8f5e9;
+    color: #4caf50;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+}
+
+.reply-btn:hover {
+    background: #c8e6c9;
+}
+
+.delete-comment-btn {
+    background: #f0d5d5;
+    color: #c53030;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.delete-comment-btn:hover {
+    background: #ffc9c9;
+}
+
+.no-comments {
+    text-align: center;
+    padding: 40px;
+    color: #8b7a68;
+    font-style: italic;
+}
+
+.login-prompt {
+    text-align: center;
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.login-prompt p {
+    color: #4a5568;
+    margin-bottom: 12px;
+}
+
+.login-prompt a {
+    display: inline-block;
+    background: linear-gradient(135deg, #c9a882 0%, #b89968 100%);
+    color: white;
+    padding: 10px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.login-prompt a:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(201, 168, 130, 0.4);
+}
+
+.login-prompt a:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(201, 168, 130, 0.4);
+}
+
+/* Reply Form Styles */
+.reply-form {
+    margin-top: 12px;
+    padding: 16px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    border-left: 3px solid #c9a882;
+    display: none;
+}
+
+.reply-form.active {
+    display: block;
+}
+
+.reply-form textarea {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #e2d5c5;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+    min-height: 60px;
+    transition: border-color 0.3s ease;
+}
+
+.reply-form textarea:focus {
+    outline: none;
+    border-color: #c9a882;
+}
+
+.reply-form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.reply-form button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.reply-submit-btn {
+    background: linear-gradient(135deg, #c9a882 0%, #b89968 100%);
+    color: white;
+}
+
+.reply-submit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(201, 168, 130, 0.4);
+}
+
+.reply-cancel-btn {
+    background: #e2d5c5;
+    color: #5a4438;
+}
+
+.reply-cancel-btn:hover {
+    background: #d4c4b0;
+}
+
+/* Replies Container */
+.replies-container {
+    margin-top: 12px;
+    margin-left: 40px;
+    border-left: 2px solid #e2d5c5;
+    padding-left: 16px;
+}
+
+.reply-item {
+    background: #f9f9f9;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.reply-item .comment-author-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+}
+
 /* Responsive Design */
 @media (max-width: 968px) {
     .details-container {
@@ -579,6 +1023,15 @@ document.addEventListener('DOMContentLoaded', function() {
     .info-label {
         min-width: auto;
     }
+
+    .comments-section {
+        padding: 16px;
+    }
+
+    .replies-container {
+        margin-left: 20px;
+        padding-left: 12px;
+    }
 }
 </style>
 
@@ -610,6 +1063,116 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <?php endif; ?>
             </div>
+
+            <!-- Comments Section -->
+            <div class="comments-section">
+                <div class="comments-header">
+                    <h3>💬 Comments</h3>
+                    <span class="comments-count"><?= $totalComments ?></span>
+                </div>
+
+                <?php if ($current_user_id): ?>
+                    <div class="comment-form">
+                        <form method="POST">
+                            <input type="hidden" name="pet_id" value="<?= $pet['id']; ?>">
+                            <textarea name="comment_text" placeholder="Share your thoughts about <?= htmlspecialchars($pet['name']); ?>..." required></textarea>
+                            <button type="submit" name="submit_comment">Post Comment</button>
+                        </form>
+                    </div>
+                <?php else: ?>
+                    <div class="login-prompt">
+                        <p>Please login to leave a comment</p>
+                        <a href="login.php">Login</a>
+                    </div>
+                <?php endif; ?>
+
+                <div class="comments-list">
+                    <?php if (count($comments) > 0): ?>
+                        <?php foreach ($comments as $comment): ?>
+                            <div class="comment-item">
+                                <div class="comment-header">
+                                    <div class="comment-author">
+                                        <div class="comment-author-icon">
+                                            <?= strtoupper(substr($comment['username'], 0, 1)) ?>
+                                        </div>
+                                        <span class="comment-author-name"><?= htmlspecialchars($comment['username']); ?></span>
+                                    </div>
+                                    <span class="comment-date"><?= date('M d, Y', strtotime($comment['created_at'])); ?></span>
+                                </div>
+                                <p class="comment-text"><?= nl2br(htmlspecialchars($comment['comment_text'])); ?></p>
+                                
+                                <div class="comment-actions">
+                                    <?php if ($current_user_id): ?>
+                                        <button class="reply-btn" onclick="toggleReplyForm(<?= $comment['id'] ?>)">
+                                            💬 Reply
+                                        </button>
+                                    <?php endif; ?>
+                                    
+                                    <?php if ($current_user_id == $comment['commenter_id']): ?>
+                                        <form method="POST" style="display: inline;">
+                                            <input type="hidden" name="pet_id" value="<?= $pet['id']; ?>">
+                                            <input type="hidden" name="comment_id" value="<?= $comment['id']; ?>">
+                                            <button type="submit" name="delete_comment" class="delete-comment-btn" onclick="return confirm('Delete this comment?')">🗑️ Delete</button>
+                                        </form>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Reply Form -->
+                                <?php if ($current_user_id): ?>
+                                <div class="reply-form" id="reply-form-<?= $comment['id'] ?>">
+                                    <form method="POST">
+                                        <input type="hidden" name="pet_id" value="<?= $pet['id']; ?>">
+                                        <input type="hidden" name="parent_id" value="<?= $comment['id']; ?>">
+                                        <textarea name="comment_text" placeholder="Write your reply..." required></textarea>
+                                        <div class="reply-form-actions">
+                                            <button type="submit" name="submit_comment" class="reply-submit-btn">Post Reply</button>
+                                            <button type="button" class="reply-cancel-btn" onclick="toggleReplyForm(<?= $comment['id'] ?>)">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
+                                <?php endif; ?>
+
+                                <!-- Display Replies -->
+                                <?php 
+                                $replies = getReplies($conn, $comment['id']);
+                                if (count($replies) > 0): 
+                                ?>
+                                <div class="replies-container">
+                                    <?php foreach ($replies as $reply): ?>
+                                        <div class="reply-item">
+                                            <div class="comment-header">
+                                                <div class="comment-author">
+                                                    <div class="comment-author-icon">
+                                                        <?= strtoupper(substr($reply['username'], 0, 1)) ?>
+                                                    </div>
+                                                    <span class="comment-author-name"><?= htmlspecialchars($reply['username']); ?></span>
+                                                </div>
+                                                <span class="comment-date"><?= date('M d, Y', strtotime($reply['created_at'])); ?></span>
+                                            </div>
+                                            <p class="comment-text"><?= nl2br(htmlspecialchars($reply['comment_text'])); ?></p>
+                                            
+                                            <?php if ($current_user_id == $reply['commenter_id']): ?>
+                                                <div class="comment-actions">
+                                                    <form method="POST" style="display: inline;">
+                                                        <input type="hidden" name="pet_id" value="<?= $pet['id']; ?>">
+                                                        <input type="hidden" name="comment_id" value="<?= $reply['id']; ?>">
+                                                        <button type="submit" name="delete_comment" class="delete-comment-btn" onclick="return confirm('Delete this reply?')">🗑️ Delete</button>
+                                                    </form>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="no-comments">
+                            No comments yet. Be the first to comment!
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
 
         <!-- Right: Pet Information -->
@@ -617,6 +1180,11 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="pet-header">
                 <h1><?= htmlspecialchars($pet['name']); ?></h1>
                 <div class="price-tag">₱<?= number_format($pet['price'], 2); ?></div>
+            </div>
+
+            <div class="description-box">
+                <h3>About <?= htmlspecialchars($pet['name']); ?></h3>
+                <p><?= nl2br(htmlspecialchars($pet['description'])); ?></p>
             </div>
 
             <div class="info-grid">
@@ -636,9 +1204,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
 
-            <div class="description-box">
-                <h3>About <?= htmlspecialchars($pet['name']); ?></h3>
-                <p><?= nl2br(htmlspecialchars($pet['description'])); ?></p>
+            <!-- Health Information Section -->
+            <div class="health-info-section">
+                <h3 class="health-info-title">🏥 Health Information</h3>
+                <div class="health-info-grid">
+                    <div class="health-info-item">
+                        <span class="health-info-label">💉 Vaccinated:</span>
+                        <span class="health-info-value">
+                            <?php if ($pet['vaccinated'] == 1): ?>
+                                <span style="color: #4caf50; font-weight: 600;">✓ Yes</span>
+                            <?php else: ?>
+                                <span style="color: #999;">✗ No</span>
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                    <div class="health-info-item">
+                        <span class="health-info-label">🏥 Neutered/Spayed:</span>
+                        <span class="health-info-value">
+                            <?php if ($pet['neutered'] == 1): ?>
+                                <span style="color: #4caf50; font-weight: 600;">✓ Yes</span>
+                            <?php else: ?>
+                                <span style="color: #999;">✗ No</span>
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                    <?php if (!empty($pet['health_status'])): ?>
+                    <div class="health-info-item full-width">
+                        <span class="health-info-label">🩺 Health Status:</span>
+                        <span class="health-info-value"><?= nl2br(htmlspecialchars($pet['health_status'])); ?></span>
+                    </div>
+                    <?php endif; ?>
+                </div>
             </div>
 
             <div class="seller-info">
@@ -771,6 +1367,23 @@ function showVerificationPopup(status) {
             confirmButtonText: 'OK',
             confirmButtonColor: '#5a4a3a',
         });
+    }
+}
+
+// Toggle reply form
+function toggleReplyForm(commentId) {
+    const replyForm = document.getElementById('reply-form-' + commentId);
+    if (replyForm.classList.contains('active')) {
+        replyForm.classList.remove('active');
+    } else {
+        // Hide all other reply forms
+        document.querySelectorAll('.reply-form').forEach(form => {
+            form.classList.remove('active');
+        });
+        // Show this reply form
+        replyForm.classList.add('active');
+        // Focus on textarea
+        replyForm.querySelector('textarea').focus();
     }
 }
 </script>

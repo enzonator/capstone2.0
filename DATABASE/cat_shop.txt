@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 13, 2025 at 03:15 AM
+-- Generation Time: Nov 14, 2025 at 02:03 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -171,7 +171,8 @@ CREATE TABLE `cart` (
 --
 
 INSERT INTO `cart` (`id`, `user_id`, `pet_id`, `created_at`) VALUES
-(10, 2, 16, '2025-11-09 12:37:15');
+(10, 2, 16, '2025-11-09 12:37:15'),
+(14, 1, 19, '2025-11-13 16:52:06');
 
 -- --------------------------------------------------------
 
@@ -214,7 +215,9 @@ INSERT INTO `messages` (`id`, `pet_id`, `sender_id`, `receiver_id`, `message`, `
 (18, 16, 17, 18, 'Is it a boy or girl?', '2025-11-03 15:48:09', 1),
 (19, 17, 20, 2, 'hello', '2025-11-11 00:25:02', 1),
 (20, 17, 2, 20, 'what?', '2025-11-11 00:31:53', 1),
-(21, 17, 20, 2, 'HAHAHA', '2025-11-11 00:32:21', 1);
+(21, 17, 20, 2, 'HAHAHA', '2025-11-11 00:32:21', 1),
+(22, 10, 21, 2, 'hello', '2025-11-13 15:40:38', 1),
+(23, 10, 21, 2, 'what', '2025-11-13 15:41:13', 1);
 
 -- --------------------------------------------------------
 
@@ -270,7 +273,10 @@ INSERT INTO `notifications` (`id`, `user_id`, `message`, `type`, `order_id`, `ca
 (34, 2, 'frankocean01 sent you a message about Phampham', 'new_message', NULL, NULL, 17, 1, '2025-11-11 08:25:02'),
 (35, 20, 'test sent you a message about Phampham', 'new_message', NULL, NULL, 17, 1, '2025-11-11 08:31:53'),
 (36, 2, 'frankocean01 sent you a message about Phampham', 'new_message', NULL, NULL, 17, 1, '2025-11-11 08:32:21'),
-(37, 2, '❌ Your verification request has been declined. Please ensure all requirements are met and try again.', 'verification_rejected', NULL, NULL, NULL, 1, '2025-11-13 08:04:10');
+(37, 2, '❌ Your verification request has been declined. Please ensure all requirements are met and try again.', 'verification_rejected', NULL, NULL, NULL, 1, '2025-11-13 08:04:10'),
+(38, 2, 'jojo sent you a message about Caroline', 'new_message', NULL, NULL, 10, 1, '2025-11-13 23:40:38'),
+(39, 2, 'jojo sent you a message about Caroline', 'new_message', NULL, NULL, 10, 1, '2025-11-13 23:41:13'),
+(40, 2, '🎉 Congratulations! Your verification request has been approved. You are now a verified user!', 'verification_approved', NULL, NULL, NULL, 1, '2025-11-13 23:42:38');
 
 -- --------------------------------------------------------
 
@@ -392,7 +398,33 @@ INSERT INTO `pets` (`id`, `user_id`, `name`, `type`, `breed`, `gender`, `age`, `
 (14, 2, 'mamamiming', '', 'American Curl', 'Male', '4', 'mother', 1234.00, 'sold', NULL, '2025-09-20 02:24:30', '7.0351976383323604', '125.51097214221956', 'Capili Subdivision, Dumoy, Talomo District, Davao City, Davao Region, 8000, Philippines', 0, 0, NULL),
 (15, 2, 'You and I', '', 'Burmese', 'Male', '5', 'to the sky', 123213.00, 'available', NULL, '2025-09-20 02:29:45', '7.044855327992125', '125.53578794002534', 'Caribbean Sea Street, Gulf View Executive Homes, Bago Aplaya, Talomo District, Davao City, Davao Region, 8000, Philippines', 0, 0, NULL),
 (16, 18, 'kiki', '', 'American Curl', 'Male', '3', 'Good healthy cat', 2003.00, 'available', NULL, '2025-11-02 18:54:38', '7.027037659022466', '125.5145287513733', 'Cuyo Street, Villa Josefina, Dumoy, Talomo District, Davao City, Davao Region, 8000, Philippines', 0, 0, NULL),
-(17, 2, 'Phampham', '', 'American Curl', 'Female', '2', 'cuteness overload', 1500.00, 'available', NULL, '2025-11-10 15:12:46', '7.084354658450104', '125.61985128104303', 'Alaska Street, Dacudao, Paciano Bangoy, Agdao District, Davao City, Davao Region, 8000, Philippines', 1, 1, 'yes');
+(17, 2, 'Phampham', '', 'American Curl', 'Female', '2', 'cuteness overload', 1500.00, 'available', NULL, '2025-11-10 15:12:46', '7.084354658450104', '125.61985128104303', 'Alaska Street, Dacudao, Paciano Bangoy, Agdao District, Davao City, Davao Region, 8000, Philippines', 1, 1, 'yes'),
+(18, 2, 'sushi', '', 'Japanese Bobtail', 'Female', '2', 'literal sushi', 1200.00, 'available', NULL, '2025-11-13 15:47:22', '', '0', 'Could not get address', 1, 1, 'healthy'),
+(19, 2, 'sushi', '', 'Japanese Bobtail', 'Female', '2', 'literal sushi', 1200.00, 'available', NULL, '2025-11-13 15:54:57', '', '0', 'Could not get address', 1, 1, 'healthy');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pet_comments`
+--
+
+CREATE TABLE `pet_comments` (
+  `id` int(11) NOT NULL,
+  `pet_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `comment_text` text NOT NULL,
+  `parent_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `pet_comments`
+--
+
+INSERT INTO `pet_comments` (`id`, `pet_id`, `user_id`, `comment_text`, `parent_id`, `created_at`) VALUES
+(1, 19, 2, 'yes', NULL, '2025-11-14 00:58:41'),
+(2, 19, 20, 'no', 1, '2025-11-14 01:01:39'),
+(3, 19, 20, 'ofcourse', 1, '2025-11-14 01:03:14');
 
 -- --------------------------------------------------------
 
@@ -439,7 +471,11 @@ INSERT INTO `pet_images` (`id`, `pet_id`, `filename`) VALUES
 (28, 16, '1762109678_58851fb848a7361f52d22e3eba20eb10.jpg'),
 (29, 16, '1762109678_ff559ba0c9eac235a8c6e60f6511a02e.jpg'),
 (30, 17, '1762787566_asd.jpg'),
-(31, 17, '1762787566_ebb3f2a4774a823b2403c10d935aba33.jpg');
+(31, 17, '1762787566_ebb3f2a4774a823b2403c10d935aba33.jpg'),
+(32, 18, '1763048842_279bcc848f2739549d40e67eb2bad27f.jpg'),
+(33, 18, '1763048842_674d1da341390c06f24b38685a26d958.jpg'),
+(34, 19, '1763049297_279bcc848f2739549d40e67eb2bad27f.jpg'),
+(35, 19, '1763049297_674d1da341390c06f24b38685a26d958.jpg');
 
 -- --------------------------------------------------------
 
@@ -495,7 +531,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `first_name`, `last_name`, `username`, `email`, `password`, `role`, `created_at`, `verified`, `id_image`, `verification_status`, `profile_pic`) VALUES
 (1, '', '', 'admin', 'admin@catshop.local', '$2y$10$zNjCOsEoUGomTXinPC01AObTdD6Ikhm2GnkbwsJDi36mcuhGa1IlS', 'admin', '2025-08-19 06:20:03', 0, NULL, 'pending', NULL),
-(2, '', '', 'test', 'test@gmail.com', '$2y$10$MBuWxPGVcV8V5qoebUYq/uJmEouf77HB8FGjB8AhfIA/WEVSYGTy2', 'customer', '2025-08-19 06:20:34', 0, NULL, 'not verified', 'profile_pics/1761993833_6ce107dbe303c5d1cce1bf5bdc092fb7.jpg'),
+(2, '', '', 'test', 'test@gmail.com', '$2y$10$MBuWxPGVcV8V5qoebUYq/uJmEouf77HB8FGjB8AhfIA/WEVSYGTy2', 'customer', '2025-08-19 06:20:34', 0, NULL, 'verified', 'profile_pics/1761993833_6ce107dbe303c5d1cce1bf5bdc092fb7.jpg'),
 (5, '', '', 'monk', 'monk@yahoo.com', '$2y$10$fMkQsIzak7CivpNkKMqG9OYhUosnXgiNKokLQOI2EYVBk7.09ckmC', 'customer', '2025-08-21 11:48:53', 0, NULL, 'pending', NULL),
 (9, 'newest', 'tester', 'new west', 'newest@gmail.com', '$2y$10$DVf7LvZUmLntssxUA3oqne4FVVQ7aPXuzTBwAdR5bBZRc.PsuQ4x.', 'customer', '2025-09-29 06:32:33', 0, NULL, 'pending', NULL),
 (16, 'Hanni', 'Pham', 'hanni', 'hanni@gmail.com', '$2y$10$uCYGdrDxh7OcO/h3lfOmj.NVhZysxET26W16yvkN3Kqmnqvyp7mXO', 'customer', '2025-10-22 06:24:23', 1, NULL, 'pending', NULL),
@@ -503,7 +539,8 @@ INSERT INTO `users` (`id`, `first_name`, `last_name`, `username`, `email`, `pass
 (18, 'Willam', 'Vangeance', 'Vangeance', 'Vangeance@gmail.com', '$2y$10$MooigHf4.HLnnT1e7J.1HOAlP4RLQoU/F1JJNtxINfv0015e9YgQi', 'customer', '2025-11-02 18:30:56', 0, NULL, 'verified', NULL),
 (19, 'king', 'kong', 'kingkong', 'king@gmail.com', '$2y$10$rUD7nHvk/tiqmN5DqgM4pedRt.TueyLxLjq6fdj/nTz3RhutAqeU.', 'customer', '2025-11-09 13:24:15', 0, NULL, 'not verified', NULL),
 (20, 'Frank', 'Ocean', 'frankocean01', 'frankocean@gmail.com', '$2y$10$hFevtY1O2q3JHtO7EkFQLOlP.wgt45rxIDm9fdgoW0c.5LtRf/Zsq', 'customer', '2025-11-10 23:30:55', 0, NULL, 'verified', NULL),
-(21, 'joseph', 'joestar', 'jojo', 'jojo@gmail.com', '$2y$10$3yEahY/I35ugQo0Oa58nZenq/pLZ0M4neaDgHILvElFY/oMVc93WG', 'customer', '2025-11-10 23:32:13', 0, NULL, 'verified', NULL);
+(21, 'joseph', 'joestar', 'jojo', 'jojo@gmail.com', '$2y$10$3yEahY/I35ugQo0Oa58nZenq/pLZ0M4neaDgHILvElFY/oMVc93WG', 'customer', '2025-11-10 23:32:13', 0, NULL, 'verified', NULL),
+(22, 'reaver', 'vandal', 'reaver', 'vandal@gmail.com', '$2y$10$OF9UQycoSS2sGTtpWQ9vCeWeANuKAF9aXi8G/QJE5XVTZIbXm1Qhe', 'customer', '2025-11-13 03:49:52', 0, NULL, 'not verified', NULL);
 
 -- --------------------------------------------------------
 
@@ -535,7 +572,8 @@ INSERT INTO `verifications` (`id`, `user_id`, `id_image`, `status`, `created_at`
 (15, 21, 'valid_id_21_1762818335.jpg', 'Approved', '2025-11-10 23:45:35'),
 (16, 20, 'valid_id_20_1762819218.jpg', 'Rejected', '2025-11-11 00:00:18'),
 (17, 20, 'valid_id_20_1762819526.jpg', 'Rejected', '2025-11-11 00:05:26'),
-(18, 20, 'valid_id_20_1762819834.jpg', 'Approved', '2025-11-11 00:10:34');
+(18, 20, 'valid_id_20_1762819834.jpg', 'Approved', '2025-11-11 00:10:34'),
+(19, 2, 'valid_id_2_1763048552.jpg', 'Approved', '2025-11-13 15:42:32');
 
 -- --------------------------------------------------------
 
@@ -648,6 +686,15 @@ ALTER TABLE `pets`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `pet_comments`
+--
+ALTER TABLE `pet_comments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `pet_id` (`pet_id`),
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `parent_id` (`parent_id`);
+
+--
 -- Indexes for table `pet_images`
 --
 ALTER TABLE `pet_images`
@@ -715,19 +762,19 @@ ALTER TABLE `adoption_cat_images`
 -- AUTO_INCREMENT for table `cart`
 --
 ALTER TABLE `cart`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `messages`
 --
 ALTER TABLE `messages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
 
 --
 -- AUTO_INCREMENT for table `orders`
@@ -751,13 +798,19 @@ ALTER TABLE `order_status_history`
 -- AUTO_INCREMENT for table `pets`
 --
 ALTER TABLE `pets`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+
+--
+-- AUTO_INCREMENT for table `pet_comments`
+--
+ALTER TABLE `pet_comments`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `pet_images`
 --
 ALTER TABLE `pet_images`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -769,13 +822,13 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `verifications`
 --
 ALTER TABLE `verifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `wishlist`
@@ -855,6 +908,14 @@ ALTER TABLE `order_status_history`
 --
 ALTER TABLE `pets`
   ADD CONSTRAINT `pets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `pet_comments`
+--
+ALTER TABLE `pet_comments`
+  ADD CONSTRAINT `pet_comments_ibfk_1` FOREIGN KEY (`pet_id`) REFERENCES `pets` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `pet_comments_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `pet_comments_ibfk_3` FOREIGN KEY (`parent_id`) REFERENCES `pet_comments` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `pet_images`

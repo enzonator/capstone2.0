@@ -768,15 +768,15 @@ function showSlide(n) {
             <!-- Health Guaranteed -->
             <div class="why-card">
                 <div class="why-icon">🏥</div>
-                <h3>Health Guaranteed</h3>
-                <p>Every pet comes with complete vet health checks, up-to-date vaccinations, and medical records. We ensure your new companion is healthy and ready for their forever home.</p>
+                <h3>Healthy Cats, Happy Homes</h3>
+                <p>We make sure every adoption or purchase supports humane care and responsible pet ownership.</p>
             </div>
 
             <!-- First-Time Owner Support -->
             <div class="why-card">
                 <div class="why-icon">📚</div>
-                <h3>First-Time Owner Resources</h3>
-                <p>New to pet ownership? We provide comprehensive guides, 24/7 support, and expert advice to help you give your pet the best care from day one.</p>
+                <h3>Health Transparency Guaranteed</h3>
+                <p>Sellers are required to provide honest and complete health details including vaccination and neuter/spay status so you can make informed and confident decisions.</p>
             </div>
 
             <!-- Safe Transactions -->
@@ -796,8 +796,8 @@ function showSlide(n) {
             <!-- Post-Purchase Support -->
             <div class="why-card">
                 <div class="why-icon">💝</div>
-                <h3>Lifetime Support</h3>
-                <p>Our relationship doesn't end at purchase. We offer ongoing support, advice, and resources throughout your pet's entire life journey.</p>
+                <h3>Transparent & Trustworthy</h3>
+                <p>Clear information, verified profiles, and responsible sellers help you make informed, confident decisions.</p>
             </div>
         </div>
     </div>
