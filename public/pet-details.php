@@ -9,8 +9,8 @@ if (!isset($_GET['id'])) {
 
 $pet_id = intval($_GET['id']);
 
-// Fetch pet info
-$sql = "SELECT p.*, u.username, u.id as user_id 
+// Fetch pet info (including seller's profile picture)
+$sql = "SELECT p.*, u.username, u.id as user_id, u.profile_pic as seller_profile_pic 
         FROM pets p
         JOIN users u ON p.user_id = u.id
         WHERE p.id = ?";
@@ -171,8 +171,8 @@ if ($current_user_id) {
     $inCart = !empty($existing);
 }
 
-// Fetch comments for this pet (only parent comments)
-$commentsSql = "SELECT c.*, u.username, u.id as commenter_id 
+// Fetch comments for this pet (only parent comments) - UPDATED TO INCLUDE profile_pic
+$commentsSql = "SELECT c.*, u.username, u.id as commenter_id, u.profile_pic 
                 FROM pet_comments c
                 JOIN users u ON c.user_id = u.id
                 WHERE c.pet_id = ? AND c.parent_id IS NULL
@@ -182,9 +182,9 @@ $commentsStmt->bind_param("i", $pet_id);
 $commentsStmt->execute();
 $comments = $commentsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-// Fetch replies for each comment
+// Fetch replies for each comment - UPDATED TO INCLUDE profile_pic
 function getReplies($conn, $comment_id) {
-    $repliesSql = "SELECT c.*, u.username, u.id as commenter_id 
+    $repliesSql = "SELECT c.*, u.username, u.id as commenter_id, u.profile_pic 
                    FROM pet_comments c
                    JOIN users u ON c.user_id = u.id
                    WHERE c.parent_id = ?
@@ -193,6 +193,20 @@ function getReplies($conn, $comment_id) {
     $repliesStmt->bind_param("i", $comment_id);
     $repliesStmt->execute();
     return $repliesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+// Helper function to get profile picture path
+function getProfilePicturePath($profile_pic) {
+    if (empty($profile_pic)) {
+        return "../uploads/profile_pics/default.jpg";
+    }
+    
+    $serverPath = "../uploads/" . $profile_pic;
+    if (file_exists($serverPath)) {
+        return "../uploads/" . $profile_pic;
+    }
+    
+    return "../uploads/profile_pics/default.jpg";
 }
 
 // Count total comments including replies
@@ -547,9 +561,33 @@ document.addEventListener('DOMContentLoaded', function() {
     color: white;
 }
 
-.seller-info::before {
-    content: "👤";
-    font-size: 24px;
+.seller-profile-pic {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    overflow: hidden;
+    position: relative;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.seller-profile-pic img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.seller-profile-pic .seller-avatar-text {
+    position: relative;
+    z-index: 1;
 }
 
 .seller-info strong {
@@ -596,24 +634,40 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .btn-cart {
-    background: linear-gradient(135deg, #e8c9a0 0%, #d4b896 100%);
-    color: #5a4438;
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: #fff;
+}
+
+.btn-cart:hover {
+    background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
 }
 
 .btn-remove {
-    background: linear-gradient(135deg, #d4a89d 0%, #c9988a 100%);
+    background: linear-gradient(135deg, #f44336 0%, #da190b 100%);
     color: #fff;
+}
+
+.btn-remove:hover {
+    background: linear-gradient(135deg, #da190b 0%, #c41206 100%);
 }
 
 .btn-buy {
-    background: linear-gradient(135deg, #a8917d 0%, #8b7a68 100%);
+    background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
     color: #fff;
 }
 
+.btn-buy:hover {
+    background: linear-gradient(135deg, #F57C00 0%, #E65100 100%);
+}
+
 .btn-inquire {
-    background: linear-gradient(135deg, #c9a882 0%, #b89968 100%);
+    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
     color: #fff;
     grid-column: 1 / -1;
+}
+
+.btn-inquire:hover {
+    background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
 }
 
 .btn-edit {
@@ -773,6 +827,22 @@ document.addEventListener('DOMContentLoaded', function() {
     justify-content: center;
     font-weight: 600;
     font-size: 14px;
+    overflow: hidden;
+    position: relative;
+}
+
+.comment-author-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.comment-author-icon .avatar-text {
+    position: relative;
+    z-index: 1;
 }
 
 .comment-author-name {
@@ -857,11 +927,6 @@ document.addEventListener('DOMContentLoaded', function() {
     text-decoration: none;
     font-weight: 600;
     transition: all 0.3s ease;
-}
-
-.login-prompt a:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(201, 168, 130, 0.4);
 }
 
 .login-prompt a:hover {
@@ -1089,11 +1154,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="comments-list">
                     <?php if (count($comments) > 0): ?>
                         <?php foreach ($comments as $comment): ?>
+                            <?php 
+                            $commentProfilePic = getProfilePicturePath($comment['profile_pic']);
+                            $hasCommentPic = !empty($comment['profile_pic']) && file_exists("../uploads/" . $comment['profile_pic']);
+                            ?>
                             <div class="comment-item">
                                 <div class="comment-header">
                                     <div class="comment-author">
                                         <div class="comment-author-icon">
-                                            <?= strtoupper(substr($comment['username'], 0, 1)) ?>
+                                            <?php if ($hasCommentPic): ?>
+                                                <img src="<?= htmlspecialchars($commentProfilePic); ?>" 
+                                                     alt="<?= htmlspecialchars($comment['username']); ?>"
+                                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                <div class="avatar-text" style="display: none;">
+                                                    <?= strtoupper(substr($comment['username'], 0, 1)) ?>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="avatar-text">
+                                                    <?= strtoupper(substr($comment['username'], 0, 1)) ?>
+                                                </div>
+                                            <?php endif; ?>
                                         </div>
                                         <span class="comment-author-name"><?= htmlspecialchars($comment['username']); ?></span>
                                     </div>
@@ -1139,11 +1219,26 @@ document.addEventListener('DOMContentLoaded', function() {
                                 ?>
                                 <div class="replies-container">
                                     <?php foreach ($replies as $reply): ?>
+                                        <?php 
+                                        $replyProfilePic = getProfilePicturePath($reply['profile_pic']);
+                                        $hasReplyPic = !empty($reply['profile_pic']) && file_exists("../uploads/" . $reply['profile_pic']);
+                                        ?>
                                         <div class="reply-item">
                                             <div class="comment-header">
                                                 <div class="comment-author">
                                                     <div class="comment-author-icon">
-                                                        <?= strtoupper(substr($reply['username'], 0, 1)) ?>
+                                                        <?php if ($hasReplyPic): ?>
+                                                            <img src="<?= htmlspecialchars($replyProfilePic); ?>" 
+                                                                 alt="<?= htmlspecialchars($reply['username']); ?>"
+                                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                            <div class="avatar-text" style="display: none;">
+                                                                <?= strtoupper(substr($reply['username'], 0, 1)) ?>
+                                                            </div>
+                                                        <?php else: ?>
+                                                            <div class="avatar-text">
+                                                                <?= strtoupper(substr($reply['username'], 0, 1)) ?>
+                                                            </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                     <span class="comment-author-name"><?= htmlspecialchars($reply['username']); ?></span>
                                                 </div>
@@ -1238,6 +1333,24 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
 
             <div class="seller-info">
+                <?php 
+                $sellerProfilePic = getProfilePicturePath($pet['seller_profile_pic']);
+                $hasSellerPic = !empty($pet['seller_profile_pic']) && file_exists("../uploads/" . $pet['seller_profile_pic']);
+                ?>
+                <div class="seller-profile-pic">
+                    <?php if ($hasSellerPic): ?>
+                        <img src="<?= htmlspecialchars($sellerProfilePic); ?>" 
+                             alt="<?= htmlspecialchars($pet['username']); ?>"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="seller-avatar-text" style="display: none;">
+                            <?= strtoupper(substr($pet['username'], 0, 1)) ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="seller-avatar-text">
+                            <?= strtoupper(substr($pet['username'], 0, 1)) ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
                 <strong>Listed by:</strong> <?= htmlspecialchars($pet['username']); ?>
             </div>
 

@@ -1,7 +1,6 @@
 <?php
 session_start();
 require_once "../config/db.php";
-include_once "../includes/header.php";
 
 // Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
@@ -11,14 +10,30 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
+// Check which column name is used for user
+$checkUserCol = $conn->query("SHOW COLUMNS FROM orders LIKE 'buyer_id'");
+$userColumn = $checkUserCol->num_rows > 0 ? 'buyer_id' : 'user_id';
+
+// Check which date column exists
+$checkDateCol = $conn->query("SHOW COLUMNS FROM orders LIKE 'order_date'");
+$dateColumn = $checkDateCol->num_rows > 0 ? 'order_date' : 'created_at';
+
 // Fetch all orders for the current user
-$sql = "SELECT o.*, p.name as pet_name, p.breed, p.type, u.username as seller_name, u.email as seller_email
+$sql = "SELECT o.*, 
+        p.name as pet_name, p.breed, p.type, 
+        u.username as seller_name, u.email as seller_email,
+        o.$dateColumn as order_timestamp
         FROM orders o
         JOIN pets p ON o.pet_id = p.id
         JOIN users u ON o.seller_id = u.id
-        WHERE o.buyer_id = ?
-        ORDER BY o.order_date DESC";
+        WHERE o.$userColumn = ?
+        ORDER BY o.$dateColumn DESC";
 $stmt = $conn->prepare($sql);
+
+if (!$stmt) {
+    die("Query preparation failed: " . $conn->error);
+}
+
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -46,8 +61,12 @@ $statusCounts = [
 ];
 
 foreach ($orders as $order) {
-    $statusCounts[$order['status']]++;
+    if (isset($statusCounts[$order['status']])) {
+        $statusCounts[$order['status']]++;
+    }
 }
+
+include_once "../includes/header.php";
 ?>
 
 <style>
@@ -616,7 +635,7 @@ body {
                                     </div>
                                     <div class="order-date">
                                         <i class="bi bi-calendar3"></i>
-                                        <?= date('F d, Y - h:i A', strtotime($order['order_date'])) ?>
+                                        <?= date('F d, Y - h:i A', strtotime($order['order_timestamp'])) ?>
                                     </div>
                                 </div>
                                 <span class="status-badge status-<?= htmlspecialchars($order['status']) ?>">

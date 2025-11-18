@@ -52,7 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $adoption_fee = floatval($_POST['adoption_fee']);
         $latitude = $_POST['latitude'];
         $longitude = $_POST['longitude'];
-        $address = $_POST['address'];
+        $address = $_POST['address']; // General area only
+        $additional_address = $_POST['additional_address'] ?? ''; // Optional specific details
         
         // Handle multiple image uploads
         $image_url = '';
@@ -92,8 +93,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (empty($error_message)) {
             $sql = "INSERT INTO adoption_cats 
-                    (name, age, gender, breed, description, health_status, vaccinated, neutered, image_url, adoption_fee, latitude, longitude, address, status, user_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Available', ?)";
+                    (name, age, gender, breed, description, health_status, vaccinated, neutered, image_url, adoption_fee, latitude, longitude, address, additional_address, status, user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Available', ?)";
             
             $stmt = $conn->prepare($sql);
             
@@ -101,9 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 die("SQL Error: " . $conn->error);
             }
             
-            $stmt->bind_param("sissssiisdsssi", 
+            $stmt->bind_param("sissssiisdssssi", 
                 $name, $age, $gender, $breed, $description, $health_status,
-                $vaccinated, $neutered, $image_url, $adoption_fee, $latitude, $longitude, $address, $user_id
+                $vaccinated, $neutered, $image_url, $adoption_fee, $latitude, $longitude, $address, $additional_address, $user_id
             );
             
             if ($stmt->execute()) {
@@ -375,19 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             height: 300px;
             width: 100%;
             border-radius: 8px;
-            margin-bottom: 10px;
             border: 2px solid #ddd;
-        }
-
-        #location-info {
-            padding: 10px;
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-            color: #333;
-            display: none;
-            margin-top: 10px;
         }
 
         .select2-container .select2-selection--single {
@@ -587,19 +576,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <section class="form-section">
                     <h2>Cat Location</h2>
 
-                    <div class="form-group">
-                        <label for="address">Address</label>
-                        <input type="text" id="address" name="address" placeholder="Click on the map to set location" readonly>
-                        <input type="hidden" id="latitude" name="latitude">
-                        <input type="hidden" id="longitude" name="longitude">
-                    </div>
+                    <input type="hidden" id="address" name="address">
+                    <input type="hidden" id="latitude" name="latitude">
+                    <input type="hidden" id="longitude" name="longitude">
 
                     <div id="map"></div>
 
-                    <div id="location-info">
-                        📍 <b>Current Location:</b><br>
-                        <span id="loc-address">Not set</span><br>
-                        <span id="loc-coords"></span>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label for="additional_address">Additional Address Info (Optional)</label>
+                        <input type="text" id="additional_address" name="additional_address" 
+                               placeholder="e.g., Near landmark, Building name, Floor number, etc.">
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            💡 Add specific details to help adopters find the location (your exact address won't be shown publicly)
+                        </small>
                     </div>
                 </section>
 
@@ -675,7 +664,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('images').addEventListener('change', function(e) {
                 const files = e.target.files;
                 const container = document.getElementById('imagePreviewContainer');
-                container.innerHTML = ''; // Clear previous previews
+                container.innerHTML = '';
                 
                 if (files.length > 0) {
                     Array.from(files).forEach((file, index) => {
@@ -689,7 +678,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             previewDiv.appendChild(img);
                             
-                            // Add "Main" badge to first image
                             if (index === 0) {
                                 const badge = document.createElement('span');
                                 badge.className = 'badge-main';
@@ -704,65 +692,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
 
-            // Initialize Map (default center: Manila)
-            var map = L.map('map').setView([14.5995, 120.9842], 13);
+            // ==================== ENHANCED INTERACTIVE GEOLOCATION ====================
+            
+            // Initialize Map (default center: Davao City, Philippines)
+            var map = L.map('map').setView([7.1907, 125.4553], 13);
 
             // OpenStreetMap Tiles
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
             }).addTo(map);
 
             var marker = null;
+            var isLocationSet = false;
 
-            // Function to update form + info box
-            function updateLocation(lat, lon) {
-                fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {
-                    headers: {
-                        'User-Agent': 'MyLeafletApp/1.0 (your-email@example.com)',
-                        'Accept-Language': 'en'
+            // Enhanced reverse geocoding - only get general area (no exact address)
+            async function reverseGeocode(lat, lon) {
+                try {
+                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+                        headers: {
+                            'User-Agent': 'PetMarketplace/1.0'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error('Location not found');
                     }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    let address = data.display_name || "Unknown location";
-
-                    $("#address").val(address);
-                    $("#latitude").val(lat);
-                    $("#longitude").val(lon);
-
-                    $("#loc-address").text(address);
-                    $("#loc-coords").text(`Lat: ${lat.toFixed(5)}, Lng: ${lon.toFixed(5)}`);
-                    $("#location-info").show();
-                })
-                .catch(err => {
-                    console.error("Geocoding error:", err);
-                    $("#address").val("Could not get address");
-                    $("#loc-address").text("Could not get address");
-                });
+                    
+                    // Build general address (NO exact street address)
+                    const addr = data.address || {};
+                    let addressParts = [];
+                    
+                    // Local area (neighborhood/suburb)
+                    if (addr.neighbourhood) addressParts.push(addr.neighbourhood);
+                    else if (addr.suburb) addressParts.push(addr.suburb);
+                    
+                    // City/Municipality
+                    if (addr.city) addressParts.push(addr.city);
+                    else if (addr.municipality) addressParts.push(addr.municipality);
+                    else if (addr.town) addressParts.push(addr.town);
+                    
+                    // Region
+                    if (addr.state) addressParts.push(addr.state);
+                    else if (addr.province) addressParts.push(addr.province);
+                    
+                    // Country
+                    if (addr.country) addressParts.push(addr.country);
+                    
+                    let formattedAddress = addressParts.join(', ') || 'Location set';
+                    
+                    return {
+                        address: formattedAddress,
+                        lat: parseFloat(data.lat),
+                        lon: parseFloat(data.lon)
+                    };
+                } catch (error) {
+                    console.error('Geocoding error:', error);
+                    throw error;
+                }
             }
 
-            // Click to drop/move marker
-            map.on('click', function(e) {
-                var lat = e.latlng.lat;
-                var lon = e.latlng.lng;
+            // Function to update location in form
+            async function updateLocation(lat, lon) {
+                try {
+                    const result = await reverseGeocode(lat, lon);
+                    
+                    // Update hidden form fields (store general address only)
+                    $("#address").val(result.address);
+                    $("#latitude").val(result.lat);
+                    $("#longitude").val(result.lon);
+                    
+                    isLocationSet = true;
+                    
+                    // Update marker popup
+                    if (marker) {
+                        marker.bindPopup(`
+                            <div style="min-width: 200px;">
+                                <strong style="color: #3d3020; font-size: 14px;">📍 Selected Location</strong><br><br>
+                                <strong>Area:</strong> ${result.address}<br><br>
+                                <em style="font-size: 12px; color: #666;">💡 Drag marker to adjust</em>
+                            </div>
+                        `).openPopup();
+                    }
+                } catch (err) {
+                    console.error("Location update error:", err);
+                    
+                    // Fallback: Still save coordinates with generic location
+                    $("#address").val(`Location: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+                    $("#latitude").val(lat);
+                    $("#longitude").val(lon);
+                    isLocationSet = true;
+                    
+                    if (marker) {
+                        marker.bindPopup(`
+                            <strong>Location Set</strong><br>
+                            Lat: ${lat.toFixed(6)}<br>
+                            Lon: ${lon.toFixed(6)}
+                        `);
+                    }
+                }
+            }
 
+            // Add or update marker with drag capability
+            function addMarker(lat, lon) {
                 if (!marker) {
-                    marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+                    marker = L.marker([lat, lon], { 
+                        draggable: true,
+                        title: 'Drag to adjust location',
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        })
+                    }).addTo(map);
 
-                    // Update location when dragged
+                    // Update location when marker is dragged
                     marker.on('dragend', function(event) {
-                        var newLat = event.target.getLatLng().lat;
-                        var newLon = event.target.getLatLng().lng;
-                        updateLocation(newLat, newLon);
+                        const newPos = event.target.getLatLng();
+                        updateLocation(newPos.lat, newPos.lng);
+                    });
+                    
+                    marker.bindTooltip('Click or drag to set location', {
+                        permanent: false,
+                        direction: 'top'
                     });
                 } else {
                     marker.setLatLng([lat, lon]);
                 }
+            }
 
+            // Click handler - pin marker anywhere on map
+            map.on('click', function(e) {
+                const lat = e.latlng.lat;
+                const lon = e.latlng.lng;
+                
+                addMarker(lat, lon);
                 updateLocation(lat, lon);
             });
 
-            // Auto-center map to user's GPS
+            // Auto-center map to user's GPS location on page load
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(function(position) {
                     var lat = position.coords.latitude;
@@ -770,9 +843,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     map.setView([lat, lon], 15);
 
-                    // Drop a marker at current GPS
                     if (!marker) {
-                        marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+                        marker = L.marker([lat, lon], { 
+                            draggable: true,
+                            icon: L.icon({
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34],
+                                shadowSize: [41, 41]
+                            })
+                        }).addTo(map);
+                        
                         marker.on('dragend', function(event) {
                             var newLat = event.target.getLatLng().lat;
                             var newLon = event.target.getLatLng().lng;
@@ -783,6 +866,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     updateLocation(lat, lon);
+                }, function(error) {
+                    console.warn('Geolocation error:', error.message);
                 });
             }
 
@@ -799,6 +884,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         confirmButtonText: 'OK',
                         confirmButtonColor: '#5a4a3a'
                     });
+                    return false;
+                }
+                
+                if (!isLocationSet || !$('#latitude').val() || !$('#longitude').val()) {
+                    e.preventDefault();
+                    
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Location Required',
+                        text: 'Please click on the map to set the cat\'s general location.',
+                        confirmButtonColor: '#5a4a3a',
+                        confirmButtonText: 'OK'
+                    });
+                    
+                    $('html, body').animate({
+                        scrollTop: $('#map').offset().top - 100
+                    }, 500);
+                    
                     return false;
                 }
                 

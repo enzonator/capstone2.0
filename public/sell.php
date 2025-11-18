@@ -433,7 +433,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $is_verified) {
         border: 2px solid #d4c4b0;
         border-radius: 12px;
         overflow: hidden;
-        height: 350px;
+        height: 400px;
         margin-top: 10px;
     }
 
@@ -463,6 +463,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $is_verified) {
         display: block;
         color: #7d6d5d;
         line-height: 1.6;
+    }
+
+    .location-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #fff3cd;
+        border: 2px solid #ffc107;
+        border-radius: 8px;
+        font-size: 13px;
+        color: #856404;
+        margin-bottom: 12px;
+    }
+
+    .location-status.success {
+        background: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+    }
+
+    .location-status.error {
+        background: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
     }
 
     /* Buttons */
@@ -506,6 +531,27 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $is_verified) {
     .btn-verify:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 20px rgba(212, 168, 157, 0.3);
+    }
+
+    .btn-location {
+        padding: 12px 20px;
+        background: linear-gradient(135deg, #8b6f47 0%, #a8917d 100%);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .btn-location:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(139, 111, 71, 0.3);
     }
 
     /* Responsive */
@@ -728,19 +774,27 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $is_verified) {
                 <div class="section-title">
                     📍 Pet Location
                 </div>
-                <div class="form-group full-width">
-                    <label class="form-label">Address</label>
-                    <input type="text" id="address" name="address" class="form-input" placeholder="Click on the map to set location" readonly>
-                    <input type="hidden" id="latitude" name="latitude">
-                    <input type="hidden" id="longitude" name="longitude">
-                </div>
+                
+                <p style="color: #7d6d5d; font-size: 14px; margin-bottom: 12px;">
+                    💡 <strong>Tip:</strong> Click "Use My Current Location" or click anywhere on the map to pin your location. You can drag the marker to adjust.
+                </p>
+                
+                <div id="locationStatus" style="display: none;"></div>
+                
+                <button type="button" id="getLocationBtn" class="btn-location">
+                    📍 Use My Current Location
+                </button>
+                
+                <input type="hidden" id="address" name="address" required>
+                <input type="hidden" id="latitude" name="latitude" required>
+                <input type="hidden" id="longitude" name="longitude" required>
 
                 <div class="map-container">
                     <div id="map"></div>
                 </div>
 
                 <div id="location-info" class="location-info" style="display: none;">
-                    <strong>📍 Current Location:</strong>
+                    <strong>📍 Selected Location:</strong>
                     <span id="loc-address">Not set</span>
                     <span id="loc-coords"></span>
                 </div>
@@ -764,8 +818,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $is_verified) {
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <!-- Leaflet CSS/JS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <!-- Select2 CSS/JS -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -896,87 +950,303 @@ $(document).ready(function() {
         }
     });
 
-    // Initialize Map (default center: Manila)
-    var map = L.map('map').setView([14.5995, 120.9842], 13);
+    // ==================== ENHANCED INTERACTIVE GEOLOCATION ====================
+    
+    // Initialize Map (default center: Davao City, Philippines)
+    var map = L.map('map').setView([7.1907, 125.4553], 13);
 
     // OpenStreetMap Tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
     }).addTo(map);
 
     var marker = null;
+    var isLocationSet = false;
 
-    // Function to update form + info box
-    function updateLocation(lat, lon) {
-        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {
-            headers: {
-                'User-Agent': 'MyLeafletApp/1.0 (your-email@example.com)',
-                'Accept-Language': 'en'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            let address = data.display_name || "Unknown location";
-
-            $("#address").val(address);
-            $("#latitude").val(lat);
-            $("#longitude").val(lon);
-
-            $("#loc-address").text(address);
-            $("#loc-coords").text(`Lat: ${lat.toFixed(5)}, Lng: ${lon.toFixed(5)}`);
-            $("#location-info").show();
-        })
-        .catch(err => {
-            console.error("Geocoding error:", err);
-            $("#address").val("Could not get address");
-            $("#loc-address").text("Could not get address");
-        });
+    // Function to show location status
+    function showLocationStatus(message, type = 'info') {
+        const statusDiv = $('#locationStatus');
+        const statusClass = type === 'success' ? 'success' : type === 'error' ? 'error' : '';
+        const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : '⏳';
+        
+        statusDiv.html(`<div class="location-status ${statusClass}">${icon} ${message}</div>`);
+        statusDiv.show();
     }
 
-    // Click to drop/move marker
-    map.on('click', function(e) {
-        var lat = e.latlng.lat;
-        var lon = e.latlng.lng;
+    // Enhanced reverse geocoding with better address formatting
+    async function reverseGeocode(lat, lon) {
+        showLocationStatus('Fetching location details...', 'info');
+        
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+                headers: {
+                    'User-Agent': 'PetMarketplace/1.0'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error('Location not found');
+            }
+            
+            // Build comprehensive address
+            const addr = data.address || {};
+            let addressParts = [];
+            
+            // Street level
+            if (addr.house_number) addressParts.push(addr.house_number);
+            if (addr.road) addressParts.push(addr.road);
+            
+            // Local area
+            if (addr.neighbourhood) addressParts.push(addr.neighbourhood);
+            else if (addr.suburb) addressParts.push(addr.suburb);
+            
+            // City/Municipality
+            if (addr.city) addressParts.push(addr.city);
+            else if (addr.municipality) addressParts.push(addr.municipality);
+            else if (addr.town) addressParts.push(addr.town);
+            
+            // Region
+            if (addr.state) addressParts.push(addr.state);
+            else if (addr.province) addressParts.push(addr.province);
+            
+            // Country
+            if (addr.country) addressParts.push(addr.country);
+            
+            let formattedAddress = addressParts.join(', ') || data.display_name;
+            
+            return {
+                address: formattedAddress,
+                city: addr.city || addr.municipality || addr.town || 'Not available',
+                country: addr.country || 'Not available',
+                lat: parseFloat(data.lat),
+                lon: parseFloat(data.lon),
+                display_name: data.display_name
+            };
+        } catch (error) {
+            console.error('Geocoding error:', error);
+            throw error;
+        }
+    }
 
+    // Function to update location in form with detailed info
+    async function updateLocation(lat, lon) {
+        try {
+            const result = await reverseGeocode(lat, lon);
+            
+            // Update hidden form fields
+            $("#address").val(result.address);
+            $("#latitude").val(result.lat);
+            $("#longitude").val(result.lon);
+
+            // Update visible location info with enhanced details
+            $("#loc-address").html(`
+                <strong>Address:</strong> ${result.address}<br>
+                <strong>City:</strong> ${result.city}<br>
+                <strong>Country:</strong> ${result.country}
+            `);
+            $("#loc-coords").text(`📍 Coordinates: ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)}`);
+            $("#location-info").show();
+            
+            isLocationSet = true;
+            showLocationStatus('Location set successfully! 🎯', 'success');
+            
+            // Update marker popup with detailed info
+            if (marker) {
+                marker.bindPopup(`
+                    <div style="min-width: 200px;">
+                        <strong style="color: #8b6f47; font-size: 14px;">📍 Selected Location</strong><br><br>
+                        <strong>Address:</strong><br>
+                        ${result.address}<br><br>
+                        <strong>Coordinates:</strong><br>
+                        ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)}<br><br>
+                        <em style="font-size: 12px; color: #666;">💡 Drag marker to adjust</em>
+                    </div>
+                `).openPopup();
+            }
+            
+            // Auto-hide success message after 3 seconds
+            setTimeout(() => {
+                $('#locationStatus').fadeOut();
+            }, 3000);
+        } catch (err) {
+            console.error("Location update error:", err);
+            showLocationStatus('Could not get full address details', 'error');
+            
+            // Fallback: Still save coordinates
+            $("#address").val(`Location: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+            $("#latitude").val(lat);
+            $("#longitude").val(lon);
+            $("#loc-address").text("Address details unavailable");
+            $("#loc-coords").text(`📍 Coordinates: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+            $("#location-info").show();
+            isLocationSet = true;
+            
+            if (marker) {
+                marker.bindPopup(`
+                    <strong>Location Set</strong><br>
+                    Lat: ${lat.toFixed(6)}<br>
+                    Lon: ${lon.toFixed(6)}
+                `);
+            }
+        }
+    }
+
+    // Add or update marker with drag capability
+    function addMarker(lat, lon) {
         if (!marker) {
-            marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+            marker = L.marker([lat, lon], { 
+                draggable: true,
+                title: 'Drag to adjust location',
+                icon: L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowSize: [41, 41]
+                })
+            }).addTo(map);
 
-            // Update location when dragged
+            // Update location when marker is dragged
             marker.on('dragend', function(event) {
-                var newLat = event.target.getLatLng().lat;
-                var newLon = event.target.getLatLng().lng;
-                updateLocation(newLat, newLon);
+                const newPos = event.target.getLatLng();
+                updateLocation(newPos.lat, newPos.lng);
+            });
+            
+            // Show tooltip
+            marker.bindTooltip('Click or drag to set location', {
+                permanent: false,
+                direction: 'top'
             });
         } else {
             marker.setLatLng([lat, lon]);
         }
+    }
 
+    // Enhanced click handler - pin marker anywhere on map
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+        
+        addMarker(lat, lon);
         updateLocation(lat, lon);
+        
+        // Visual feedback
+        showLocationStatus('Location pinned! 📌', 'success');
     });
 
-    // Auto-center map to user's GPS
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            var lat = position.coords.latitude;
-            var lon = position.coords.longitude;
+    // "Use My Current Location" button with improved error handling
+    $('#getLocationBtn').on('click', function() {
+        if (!navigator.geolocation) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Geolocation Not Supported',
+                html: 'Your browser doesn\'t support geolocation.<br><br><strong>Alternative:</strong> Click directly on the map to pin your location.',
+                confirmButtonColor: '#8b6f47'
+            });
+            return;
+        }
 
-            map.setView([lat, lon], 15);
+        showLocationStatus('Requesting your location...', 'info');
+        $(this).prop('disabled', true).html('⏳ Getting location...');
 
-            // Drop a marker at current GPS
-            if (!marker) {
-                marker = L.marker([lat, lon], { draggable: true }).addTo(map);
-                marker.on('dragend', function(event) {
-                    var newLat = event.target.getLatLng().lat;
-                    var newLon = event.target.getLatLng().lng;
-                    updateLocation(newLat, newLon);
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
+
+                console.log('✅ Location acquired:', { lat, lon, accuracy: Math.round(accuracy) + 'm' });
+
+                // Center map with smooth animation
+                map.flyTo([lat, lon], 17, {
+                    duration: 1.5
                 });
-            } else {
-                marker.setLatLng([lat, lon]);
-            }
+                
+                addMarker(lat, lon);
+                updateLocation(lat, lon);
 
-            updateLocation(lat, lon);
-        });
-    }
+                $('#getLocationBtn').prop('disabled', false).html('📍 Use My Current Location');
+                
+                // Show accuracy indicator
+                if (accuracy) {
+                    showLocationStatus(`Location locked! (±${Math.round(accuracy)}m accuracy)`, 'success');
+                }
+            },
+            function(error) {
+                console.error('❌ Geolocation error:', error);
+                
+                let errorTitle = 'Location Error';
+                let errorMessage = '';
+                
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorTitle = 'Permission Denied';
+                        errorMessage = 'Please allow location access in your browser settings.<br><br><strong>Alternative:</strong> Click on the map to set your location manually.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorTitle = 'Location Unavailable';
+                        errorMessage = 'Your location information is currently unavailable.<br><br><strong>Alternative:</strong> Click on the map to pin your location.';
+                        break;
+                    case error.TIMEOUT:
+                        errorTitle = 'Request Timeout';
+                        errorMessage = 'Location request timed out. Please try again or click on the map.';
+                        break;
+                    default:
+                        errorMessage = 'An unknown error occurred. Please click on the map to set your location.';
+                }
+                
+                Swal.fire({
+                    icon: 'warning',
+                    title: errorTitle,
+                    html: errorMessage,
+                    confirmButtonColor: '#8b6f47',
+                    confirmButtonText: 'OK'
+                });
+                
+                showLocationStatus('Please click on the map to set location', 'error');
+                $('#getLocationBtn').prop('disabled', false).html('📍 Use My Current Location');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+            }
+        );
+    });
+
+    // Form validation - ensure location is properly set
+    $('#sellForm').on('submit', function(e) {
+        if (!isLocationSet || !$('#latitude').val() || !$('#longitude').val()) {
+            e.preventDefault();
+            
+            Swal.fire({
+                icon: 'warning',
+                title: 'Location Required',
+                html: 'Please set the pet location by either:<br><br>' +
+                      '• Clicking <strong>"Use My Current Location"</strong> button, or<br>' +
+                      '• Clicking anywhere on the map to pin the location',
+                confirmButtonColor: '#8b6f47',
+                confirmButtonText: 'Got it!'
+            });
+            
+            // Scroll to map smoothly
+            $('html, body').animate({
+                scrollTop: $('#map').offset().top - 100
+            }, 500);
+            
+            // Highlight the map briefly
+            $('.map-container').css('border', '3px solid #ff6b6b');
+            setTimeout(() => {
+                $('.map-container').css('border', '2px solid #d4c4b0');
+            }, 2000);
+            
+            return false;
+        }
+    });
 });
 </script>
 

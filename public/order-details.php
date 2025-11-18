@@ -69,10 +69,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status']) && $
         $conn->begin_transaction();
         
         try {
-            // Update order status
-            $updateSql = "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?";
+            // Determine payment status based on order status
+            $payment_status = 'pending';
+            if ($new_status === 'delivered') {
+                $payment_status = 'completed';
+            } elseif ($new_status === 'cancelled') {
+                $payment_status = 'cancelled';
+            }
+            
+            // Update order status AND payment status
+            $updateSql = "UPDATE orders SET status = ?, payment_status = ?, updated_at = NOW() WHERE id = ?";
             $updateStmt = $conn->prepare($updateSql);
-            $updateStmt->bind_param("si", $new_status, $order_id);
+            $updateStmt->bind_param("ssi", $new_status, $payment_status, $order_id);
             $updateStmt->execute();
             
             // If status is delivered, mark pet as sold
@@ -83,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status']) && $
                 $petUpdateStmt->execute();
             }
             
-            // If status is cancelled, mark pet as available again (optional)
+            // If status is cancelled, mark pet as available again
             if ($new_status === 'cancelled') {
                 $petUpdateSql = "UPDATE pets SET status = 'available' WHERE id = ?";
                 $petUpdateStmt = $conn->prepare($petUpdateSql);
@@ -102,8 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status']) && $
             $statusMessages = [
                 'confirmed' => 'Your order #' . $order_id . ' for ' . $order['pet_name'] . ' has been confirmed by the seller.',
                 'shipped' => 'Great news! Your order #' . $order_id . ' for ' . $order['pet_name'] . ' has been shipped!',
-                'delivered' => 'Your order #' . $order_id . ' for ' . $order['pet_name'] . ' has been delivered successfully! Enjoy your new pet! 🎉',
-                'cancelled' => 'Your order #' . $order_id . ' for ' . $order['pet_name'] . ' has been cancelled by the seller.'
+                'delivered' => 'Your order #' . $order_id . ' for ' . $order['pet_name'] . ' has been delivered successfully! Payment completed. Enjoy your new pet! 🎉',
+                'cancelled' => 'Your order #' . $order_id . ' for ' . $order['pet_name'] . ' has been cancelled by the seller. Payment has been cancelled.'
             ];
             
             if (isset($statusMessages[$new_status])) {
@@ -124,7 +132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status']) && $
             
             $successMsg = "Order status updated to '" . ucfirst($new_status) . "' successfully!";
             if ($new_status === 'delivered') {
-                $successMsg .= " Pet has been marked as sold.";
+                $successMsg .= " Pet has been marked as sold. Payment completed.";
+            } elseif ($new_status === 'cancelled') {
+                $successMsg .= " Pet is now available again. Payment cancelled.";
             }
             $_SESSION['success_message'] = $successMsg . " Buyer has been notified.";
             header("Location: order-details.php?id=" . $order_id);
@@ -405,6 +415,15 @@ include_once "../includes/header.php";
       font-size: 13px;
       color: #666;
     }
+    .text-success {
+      color: #28a745 !important;
+    }
+    .text-warning {
+      color: #ffc107 !important;
+    }
+    .text-danger {
+      color: #dc3545 !important;
+    }
     @media (max-width: 992px) {
       .content-grid {
         grid-template-columns: 1fr;
@@ -515,9 +534,57 @@ include_once "../includes/header.php";
         <div class="info-row">
           <span class="info-label">Payment Status</span>
           <span class="info-value">
-            <?= $order['status'] === 'delivered' ? 'Completed' : 'Pending' ?>
+            <?php 
+              // Get payment status from database or determine from order status
+              $paymentStatus = 'Pending';
+              $paymentClass = 'text-warning';
+              
+              // First check if payment_status column exists and use it
+              if (isset($order['payment_status'])) {
+                switch($order['payment_status']) {
+                  case 'completed':
+                    $paymentStatus = 'Completed';
+                    $paymentClass = 'text-success';
+                    break;
+                  case 'cancelled':
+                    $paymentStatus = 'Cancelled';
+                    $paymentClass = 'text-danger';
+                    break;
+                  default:
+                    $paymentStatus = 'Pending';
+                    $paymentClass = 'text-warning';
+                }
+              } else {
+                // Fallback: determine from order status if column doesn't exist
+                if ($order['status'] === 'delivered') {
+                  $paymentStatus = 'Completed';
+                  $paymentClass = 'text-success';
+                } elseif ($order['status'] === 'cancelled') {
+                  $paymentStatus = 'Cancelled';
+                  $paymentClass = 'text-danger';
+                }
+              }
+            ?>
+            <span class="<?= $paymentClass ?>" style="font-weight: 600;">
+              <?= $paymentStatus ?>
+            </span>
           </span>
         </div>
+        <?php if ($paymentStatus === 'Completed'): ?>
+          <div class="info-row">
+            <span class="info-label">Payment Completed On</span>
+            <span class="info-value">
+              <?= isset($order['updated_at']) ? date('M d, Y - h:i A', strtotime($order['updated_at'])) : 'N/A' ?>
+            </span>
+          </div>
+        <?php elseif ($paymentStatus === 'Cancelled'): ?>
+          <div class="info-row">
+            <span class="info-label">Cancelled On</span>
+            <span class="info-value">
+              <?= isset($order['updated_at']) ? date('M d, Y - h:i A', strtotime($order['updated_at'])) : 'N/A' ?>
+            </span>
+          </div>
+        <?php endif; ?>
       </div>
 
       <?php if (!empty($order['notes'])): ?>

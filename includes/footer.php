@@ -142,34 +142,74 @@
         margin-top: 2px;
     }
 
-    .newsletter-form {
+    /* Feedback Form Styles */
+    .feedback-form {
         display: flex;
+        flex-direction: column;
+        gap: 15px;
         margin-top: 15px;
-        gap: 10px;
     }
 
-    .newsletter-input {
-        flex: 1;
+    .rating-container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .rating-label {
+        font-size: 13px;
+        color: #d4c4b0;
+        font-weight: 500;
+    }
+
+    .star-rating {
+        display: flex;
+        gap: 8px;
+        font-size: 28px;
+    }
+
+    .star {
+        cursor: pointer;
+        color: rgba(234, 221, 202, 0.3);
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+
+    .star:hover,
+    .star.active {
+        color: #FFD700;
+        transform: scale(1.1);
+    }
+
+    .star.hovered {
+        color: #FFD700;
+    }
+
+    .feedback-textarea {
+        width: 100%;
         padding: 12px 15px;
         border: 2px solid #EADDCA;
-        border-radius: 25px;
+        border-radius: 12px;
         background: rgba(234, 221, 202, 0.1);
         color: #EADDCA;
         font-size: 14px;
         outline: none;
         transition: all 0.3s ease;
+        resize: vertical;
+        min-height: 100px;
+        font-family: inherit;
     }
 
-    .newsletter-input::placeholder {
+    .feedback-textarea::placeholder {
         color: #d4c4b0;
     }
 
-    .newsletter-input:focus {
+    .feedback-textarea:focus {
         background: rgba(234, 221, 202, 0.2);
         border-color: #EADDCA;
     }
 
-    .newsletter-btn {
+    .feedback-btn {
         padding: 12px 25px;
         background: #EADDCA;
         color: #5a4a3a;
@@ -179,12 +219,44 @@
         cursor: pointer;
         transition: all 0.3s ease;
         font-size: 14px;
+        align-self: flex-start;
     }
 
-    .newsletter-btn:hover {
+    .feedback-btn:hover:not(:disabled) {
         background: #d4c4b0;
         transform: translateY(-2px);
         box-shadow: 0 5px 15px rgba(234, 221, 202, 0.3);
+    }
+
+    .feedback-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .feedback-message {
+        padding: 10px 15px;
+        border-radius: 8px;
+        font-size: 13px;
+        margin-top: 10px;
+        text-align: center;
+    }
+
+    .feedback-message.success {
+        background: rgba(76, 175, 80, 0.2);
+        border: 1px solid rgba(76, 175, 80, 0.5);
+        color: #90EE90;
+    }
+
+    .feedback-message.error {
+        background: rgba(244, 67, 54, 0.2);
+        border: 1px solid rgba(244, 67, 54, 0.5);
+        color: #FFB6B6;
+    }
+
+    .feedback-message.already-submitted {
+        background: rgba(255, 193, 7, 0.2);
+        border: 1px solid rgba(255, 193, 7, 0.5);
+        color: #FFE082;
     }
 
     .footer-bottom {
@@ -232,10 +304,6 @@
             gap: 30px;
         }
 
-        .newsletter-form {
-            flex-direction: column;
-        }
-
         .social-links {
             justify-content: center;
         }
@@ -251,6 +319,14 @@
 
         .contact-item {
             justify-content: center;
+        }
+
+        .star-rating {
+            justify-content: center;
+        }
+
+        .feedback-btn {
+            align-self: center;
         }
     }
 </style>
@@ -296,9 +372,7 @@
                     <li><a href="index.php">Home</a></li>
                     <li><a href="products.php">Browse Pets</a></li>
                     <li><a href="sell.php">Sell Your Pet</a></li>
-                    <li><a href="about.php">About Us</a></li>
-                    <li><a href="contact.php">Contact</a></li>
-                    <li><a href="faq.php">FAQs</a></li>
+                    <li><a href="adoption.php">Adoption</a></li>
                 </ul>
             </div>
 
@@ -336,13 +410,34 @@
                 </div>
             </div>
 
-            <!-- Newsletter -->
+            <!-- Feedback Form -->
             <div class="footer-section">
-                <h3>Newsletter</h3>
-                <p>Subscribe to get updates on new pets and special offers!</p>
-                <form class="newsletter-form" method="post" action="newsletter.php">
-                    <input type="email" name="email" class="newsletter-input" placeholder="Your email address" required>
-                    <button type="submit" class="newsletter-btn">Subscribe</button>
+                <h3>Share Your Feedback</h3>
+                <p>Help us improve! Rate your experience and share your thoughts.</p>
+                <form class="feedback-form" method="post" action="submit_feedback.php" id="feedbackForm">
+                    <div class="rating-container">
+                        <label class="rating-label">Rate your experience:</label>
+                        <div class="star-rating" id="starRating">
+                            <span class="star" data-rating="1">★</span>
+                            <span class="star" data-rating="2">★</span>
+                            <span class="star" data-rating="3">★</span>
+                            <span class="star" data-rating="4">★</span>
+                            <span class="star" data-rating="5">★</span>
+                        </div>
+                        <input type="hidden" name="rating" id="ratingInput" required>
+                    </div>
+                    
+                    <textarea 
+                        name="message" 
+                        class="feedback-textarea" 
+                        placeholder="Tell us about your experience..." 
+                        required
+                        maxlength="500"
+                    ></textarea>
+                    
+                    <button type="submit" class="feedback-btn">Submit Feedback</button>
+                    
+                    <div id="feedbackMessage" class="feedback-message" style="display: none;"></div>
                 </form>
             </div>
         </div>
@@ -350,12 +445,93 @@
         <!-- Footer Bottom -->
         <div class="footer-bottom">
             <p>&copy; <?php echo date('Y'); ?> CatShop. All rights reserved.</p>
-            <div class="footer-links">
-                <a href="privacy.php">Privacy Policy</a>
-                <a href="terms.php">Terms of Service</a>
-                <a href="cookies.php">Cookie Policy</a>
-                <a href="refund.php">Refund Policy</a>
-            </div>
         </div>
     </div>
 </footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const stars = document.querySelectorAll('.star');
+    const ratingInput = document.getElementById('ratingInput');
+    const feedbackForm = document.getElementById('feedbackForm');
+    const feedbackMessage = document.getElementById('feedbackMessage');
+    let selectedRating = 0;
+
+    // Star rating functionality
+    stars.forEach(star => {
+        star.addEventListener('click', function() {
+            selectedRating = parseInt(this.getAttribute('data-rating'));
+            ratingInput.value = selectedRating;
+            updateStars(selectedRating);
+        });
+
+        star.addEventListener('mouseenter', function() {
+            const hoverRating = parseInt(this.getAttribute('data-rating'));
+            updateStars(hoverRating, true);
+        });
+    });
+
+    document.getElementById('starRating').addEventListener('mouseleave', function() {
+        updateStars(selectedRating);
+    });
+
+    function updateStars(rating, isHover = false) {
+        stars.forEach(star => {
+            const starRating = parseInt(star.getAttribute('data-rating'));
+            if (starRating <= rating) {
+                star.classList.add(isHover ? 'hovered' : 'active');
+                if (!isHover) {
+                    star.classList.remove('hovered');
+                }
+            } else {
+                star.classList.remove('active', 'hovered');
+            }
+        });
+    }
+
+    // Form submission
+    feedbackForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        if (!ratingInput.value) {
+            showMessage('Please select a rating before submitting.', 'error');
+            return;
+        }
+
+        const formData = new FormData(feedbackForm);
+
+        fetch('submit_feedback.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage(data.message, 'success');
+                feedbackForm.reset();
+                selectedRating = 0;
+                updateStars(0);
+                feedbackForm.querySelector('button[type="submit"]').disabled = true;
+            } else if (data.already_submitted) {
+                showMessage(data.message, 'already-submitted');
+            } else {
+                showMessage(data.message || 'An error occurred. Please try again.', 'error');
+            }
+        })
+        .catch(error => {
+            showMessage('An error occurred. Please try again.', 'error');
+            console.error('Error:', error);
+        });
+    });
+
+    function showMessage(message, type) {
+        feedbackMessage.textContent = message;
+        feedbackMessage.className = `feedback-message ${type}`;
+        feedbackMessage.style.display = 'block';
+        
+        setTimeout(() => {
+            feedbackMessage.style.display = 'none';
+        }, 5000);
+    }
+});
+</script>

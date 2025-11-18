@@ -10,6 +10,17 @@ if (isset($conn)) {
         $pending_count = $count_row['count'];
     }
 }
+
+// Count pending feedback reviews
+$pending_feedback_count = 0;
+if (isset($conn)) {
+    $feedback_sql = "SELECT COUNT(*) as count FROM feedback WHERE status = 'pending'";
+    $feedback_result = $conn->query($feedback_sql);
+    if ($feedback_result) {
+        $feedback_row = $feedback_result->fetch_assoc();
+        $pending_feedback_count = $feedback_row['count'];
+    }
+}
 ?>
 
 <div class="sidebar">
@@ -32,6 +43,13 @@ if (isset($conn)) {
       <span class="nav-text">Verify Requests</span>
       <?php if ($pending_count > 0): ?>
         <span class="notification-badge"><?= $pending_count ?></span>
+      <?php endif; ?>
+    </a>
+    <a href="admin_feedback.php" class="nav-item">
+      <span class="nav-icon">💬</span>
+      <span class="nav-text">Feedback</span>
+      <?php if ($pending_feedback_count > 0): ?>
+        <span class="notification-badge"><?= $pending_feedback_count ?></span>
       <?php endif; ?>
     </a>
   </nav>

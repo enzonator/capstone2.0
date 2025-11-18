@@ -1,4 +1,4 @@
-=<?php
+<?php
 session_start();
 require_once "../config/db.php";
 
@@ -32,7 +32,7 @@ include __DIR__ . "/../includes/admin-sidebar.php"; // Sidebar
             <th>Action</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="verificationsTableBody">
           <?php
           $sql = "SELECT v.id, v.user_id, v.id_image, v.status, v.created_at, 
                          u.username, u.email, u.verification_status
@@ -131,8 +131,10 @@ include __DIR__ . "/../includes/admin-sidebar.php"; // Sidebar
   <button class="notification-close">&times;</button>
 </div>
 
-<!-- JavaScript for Popup -->
+<!-- JavaScript for Popup and Real-time Updates -->
 <script>
+let lastRequestCount = 0;
+
 document.addEventListener('DOMContentLoaded', function() {
   const urlParams = new URLSearchParams(window.location.search);
   const status = urlParams.get('status');
@@ -145,7 +147,147 @@ document.addEventListener('DOMContentLoaded', function() {
     url.searchParams.delete('status');
     window.history.replaceState({}, '', url);
   }
+
+  // Initialize request count
+  const tbody = document.getElementById('verificationsTableBody');
+  lastRequestCount = tbody.querySelectorAll('tr').length;
+
+  // Start fetching verification requests
+  fetchVerificationRequests();
+  setInterval(fetchVerificationRequests, 5000); // Check every 5 seconds
 });
+
+function fetchVerificationRequests() {
+  fetch('fetch-verification-requests.php')
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        updateVerificationTable(data.requests);
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching verification requests:', error);
+    });
+}
+
+function updateVerificationTable(requests) {
+  const tbody = document.getElementById('verificationsTableBody');
+  
+  // Only update if the count changed
+  if (requests.length !== lastRequestCount) {
+    tbody.innerHTML = '';
+    
+    if (requests.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan='7' class="empty">
+            <div class="empty-state">
+              <span class="empty-icon">🧾</span>
+              <p>No verification requests found</p>
+            </div>
+          </td>
+        </tr>
+      `;
+    } else {
+      requests.forEach(req => {
+        const row = document.createElement('tr');
+        
+        // Determine status icon
+        let statusIcon = req.status === 'Pending' ? '⏳' : 
+                        (req.status === 'Approved' ? '✓' : '✗');
+        
+        // Determine user status icon
+        let userIcon = req.verification_status === 'verified' ? '✓' :
+                      (req.verification_status === 'pending' ? '⏳' : '○');
+        
+        // Format date
+        const date = new Date(req.created_at);
+        const formattedDate = date.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        }) + ' ' + date.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit', 
+          hour12: true 
+        });
+        
+        // Build ID image cell
+        let idImageCell = '';
+        if (req.id_image) {
+          idImageCell = `<a href="../uploads/verifications/${escapeHtml(req.id_image)}" 
+                            target="_blank" 
+                            class="file-link">
+                            📎 View Document
+                         </a>`;
+        } else {
+          idImageCell = '<span class="no-file">No file</span>';
+        }
+        
+        // Build action cell
+        let actionCell = '';
+        if (req.status === 'Pending') {
+          actionCell = `
+            <div class="actions">
+              <a href="verify-action.php?id=${req.id}&action=approve" 
+                 class="btn-approve"
+                 onclick="return confirm('Approve this verification request?');"
+                 title="Approve Request">
+                 ✓
+              </a>
+              <a href="verify-action.php?id=${req.id}&action=reject" 
+                 class="btn-reject"
+                 onclick="return confirm('Reject this verification request?');"
+                 title="Reject Request">
+                 ✗
+              </a>
+            </div>
+          `;
+        } else {
+          actionCell = '<span class="processed-text">Processed</span>';
+        }
+        
+        row.innerHTML = `
+          <td><span class="id-badge">#${req.id}</span></td>
+          <td>
+            <div class="user-info">
+              <strong class="username">${escapeHtml(req.username)}</strong>
+              <span class="email-text">${escapeHtml(req.email)}</span>
+            </div>
+          </td>
+          <td>${idImageCell}</td>
+          <td>
+            <span class="status-badge ${req.status.toLowerCase()}">
+              ${statusIcon} ${escapeHtml(req.status)}
+            </span>
+          </td>
+          <td>
+            <span class="user-status-badge ${req.verification_status.replace(' ', '-').toLowerCase()}">
+              ${userIcon} ${escapeHtml(req.verification_status.charAt(0).toUpperCase() + req.verification_status.slice(1))}
+            </span>
+          </td>
+          <td><span class="date-text">${formattedDate}</span></td>
+          <td>${actionCell}</td>
+        `;
+        
+        tbody.appendChild(row);
+      });
+    }
+    
+    lastRequestCount = requests.length;
+  }
+}
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+}
 
 function showNotification(status) {
   const popup = document.getElementById('notification-popup');

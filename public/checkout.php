@@ -72,9 +72,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $payment_method = $_POST['payment_method'];
     $notes = trim($_POST['notes']);
     
+    // Validate Philippine phone number
+    $phone_clean = preg_replace('/[^0-9]/', '', $phone);
+    
+    // Check if it's a valid Philippine number
+    $valid_phone = false;
+    if (preg_match('/^(09|639)\d{9}$/', $phone_clean)) {
+        // Format: 09XXXXXXXXX or 639XXXXXXXXX
+        $valid_phone = true;
+        // Standardize to 09XXXXXXXXX format
+        if (substr($phone_clean, 0, 3) === '639') {
+            $phone_clean = '0' . substr($phone_clean, 2);
+        }
+    } elseif (preg_match('/^9\d{9}$/', $phone_clean)) {
+        // Format: 9XXXXXXXXX (missing leading 0)
+        $valid_phone = true;
+        $phone_clean = '0' . $phone_clean;
+    }
+    
     // Validate inputs
     if (empty($full_name) || empty($email) || empty($phone) || empty($address) || empty($city)) {
         $error_message = "Please fill in all required fields.";
+    } elseif (!$valid_phone) {
+        $error_message = "Please enter a valid Philippine mobile number (e.g., 09171234567).";
     } else {
         // Begin transaction
         $conn->begin_transaction();
@@ -88,8 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 
                 $orderSql = "INSERT INTO orders (buyer_id, seller_id, pet_id, total_amount, 
                             full_name, email, phone, address, city, postal_code, 
-                            payment_method, notes, status, $dateColumn) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())";
+                            payment_method, notes, status, payment_status, $dateColumn) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', NOW())";
                 $orderStmt = $conn->prepare($orderSql);
                 
                 if ($orderStmt === false) {
@@ -103,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                     $item['price'],
                     $full_name,
                     $email,
-                    $phone,
+                    $phone_clean,
                     $address,
                     $city,
                     $postal_code,
@@ -275,6 +295,20 @@ include_once "../includes/header.php";
     .btn-place-order:hover {
       background: #218838;
     }
+    .phone-hint {
+      font-size: 12px;
+      color: #6c757d;
+      margin-top: 5px;
+    }
+    .is-invalid {
+      border-color: #dc3545;
+    }
+    .invalid-feedback {
+      display: block;
+      color: #dc3545;
+      font-size: 14px;
+      margin-top: 5px;
+    }
     @media (max-width: 992px) {
       .checkout-container {
         grid-template-columns: 1fr;
@@ -315,9 +349,21 @@ include_once "../includes/header.php";
                    value="<?= htmlspecialchars($user['email']) ?>" required>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Phone <span class="required">*</span></label>
-            <input type="tel" name="phone" class="form-control" 
-                   placeholder="+63 912 345 6789" required>
+            <label class="form-label">Phone Number <span class="required">*</span></label>
+            <input type="tel" 
+                   name="phone" 
+                   id="phone" 
+                   class="form-control" 
+                   placeholder="09171234567"
+                   pattern="^(09|\+639|639)\d{9}$"
+                   maxlength="13"
+                   required>
+            <div class="phone-hint">
+              📱 Format: 09171234567 
+            </div>
+            <div id="phoneError" class="invalid-feedback" style="display: none;">
+              Please enter a valid Philippine mobile number (e.g., 09171234567)
+            </div>
           </div>
         </div>
       </div>
@@ -339,7 +385,7 @@ include_once "../includes/header.php";
           <div class="col-md-4 mb-3">
             <label class="form-label">Postal Code</label>
             <input type="text" name="postal_code" class="form-control" 
-                   placeholder="1100">
+                   placeholder="1100" maxlength="4" pattern="\d{4}">
           </div>
         </div>
       </div>
@@ -424,6 +470,64 @@ function selectPayment(element, method) {
   document.getElementById(method).checked = true;
 }
 
+// Phone number validation and formatting
+const phoneInput = document.getElementById('phone');
+const phoneError = document.getElementById('phoneError');
+
+phoneInput.addEventListener('input', function(e) {
+  // Remove all non-numeric characters except +
+  let value = e.target.value.replace(/[^\d+]/g, '');
+  
+  // Handle different formats
+  if (value.startsWith('+63')) {
+    // Keep +63 format
+    value = '+63' + value.substring(3).replace(/\D/g, '').substring(0, 10);
+  } else if (value.startsWith('63')) {
+    // Convert 63 to +63
+    value = '+63' + value.substring(2).replace(/\D/g, '').substring(0, 10);
+  } else if (value.startsWith('09')) {
+    // Keep 09 format
+    value = '09' + value.substring(2).replace(/\D/g, '').substring(0, 9);
+  } else if (value.startsWith('9')) {
+    // Add 0 prefix
+    value = '09' + value.substring(1).replace(/\D/g, '').substring(0, 9);
+  } else {
+    // Remove any leading zeros except 09
+    value = value.replace(/^0+/, '');
+    if (value.length > 0 && !value.startsWith('9')) {
+      value = '';
+    }
+  }
+  
+  e.target.value = value;
+  
+  // Validate
+  validatePhone();
+});
+
+phoneInput.addEventListener('blur', validatePhone);
+
+function validatePhone() {
+  const value = phoneInput.value;
+  const patterns = [
+    /^09\d{9}$/,           // 09171234567
+    /^\+639\d{9}$/,        // +639171234567
+    /^639\d{9}$/           // 639171234567
+  ];
+  
+  const isValid = patterns.some(pattern => pattern.test(value));
+  
+  if (value && !isValid) {
+    phoneInput.classList.add('is-invalid');
+    phoneError.style.display = 'block';
+  } else {
+    phoneInput.classList.remove('is-invalid');
+    phoneError.style.display = 'none';
+  }
+  
+  return isValid;
+}
+
 // Form validation
 document.getElementById('checkoutForm').addEventListener('submit', function(e) {
   const paymentMethod = document.querySelector('input[name="payment_method"]:checked');
@@ -431,6 +535,16 @@ document.getElementById('checkoutForm').addEventListener('submit', function(e) {
   if (!paymentMethod) {
     e.preventDefault();
     alert('Please select a payment method.');
+    return false;
+  }
+  
+  // Validate phone number
+  if (!validatePhone() && phoneInput.value) {
+    e.preventDefault();
+    phoneInput.focus();
+    phoneInput.classList.add('is-invalid');
+    phoneError.style.display = 'block';
+    alert('Please enter a valid Philippine mobile number.');
     return false;
   }
 });

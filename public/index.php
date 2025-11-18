@@ -271,13 +271,41 @@ if (isset($_SESSION['user_id'])) {
         margin-bottom: 6px;
     }
 
-    .pet-seller {
-        font-size: 13px;
-        color: #8d7d6d;
-        margin-bottom: 10px;
+    .pet-health-info {
+        margin-bottom: 12px;
+        min-height: 44px;
         display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: flex-start;
+    }
+
+    .health-badge {
+        display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 4px;
+        background: #e8f5e9;
+        color: #2e7d32;
+        padding: 5px 10px;
+        border-radius: 14px;
+        font-size: 11px;
+        font-weight: 600;
+        border: 1px solid #c8e6c9;
+    }
+
+    .health-badge.description {
+        background: #fff3e0;
+        color: #e65100;
+        border-color: #ffe0b2;
+        width: 100%;
+        text-align: left;
+    }
+
+    .health-badge.none {
+        background: #ffebee;
+        color: #c62828;
+        border-color: #ffcdd2;
+        width: 100%;
     }
 
     .pet-price {
@@ -290,22 +318,22 @@ if (isset($_SESSION['user_id'])) {
     .view-btn {
         display: block;
         width: 100%;
-        padding: 10px;
+        padding: 12px;
         background: #EADDCA;
         color: #5a4a3a;
-        border: 2px solid #EADDCA;
+        border: none;
         border-radius: 8px;
         text-decoration: none;
         font-size: 14px;
         font-weight: 600;
         text-align: center;
         transition: all 0.3s ease;
+        cursor: pointer;
     }
 
     .view-btn:hover {
-        background: #5a4a3a;
-        color: #EADDCA;
-        border-color: #5a4a3a;
+        background: #d4c4b0;
+        color: #5a4a3a;
     }
 
     .no-pets {
@@ -632,9 +660,10 @@ function showSlide(n) {
 
         <div class="pet-grid">
             <?php
-            // Fetch ONLY AVAILABLE pets with seller info + first image
+            // Fetch ONLY AVAILABLE pets with health info + first image
             $result = $conn->query("
-                SELECT p.id, p.name, p.breed, p.age, p.price, p.status, u.username,
+                SELECT p.id, p.name, p.breed, p.age, p.price, p.status, 
+                       p.vaccinated, p.neutered, p.health_status,
                        COALESCE(
                            (
                                SELECT pi.filename 
@@ -646,7 +675,6 @@ function showSlide(n) {
                            p.image
                        ) AS image
                 FROM pets p
-                LEFT JOIN users u ON p.user_id = u.id
                 WHERE p.status = 'available'
                 ORDER BY p.id DESC
                 LIMIT 10
@@ -655,6 +683,20 @@ function showSlide(n) {
             if ($result && $result->num_rows > 0) {
                 while ($row = $result->fetch_assoc()):
                     $image = $row['image'] ?: 'no-image.png';
+                    
+                    // Build health status badges
+                    $healthBadges = [];
+                    if ($row['vaccinated'] == 1) {
+                        $healthBadges[] = '<span class="health-badge">✓ Vaccinated</span>';
+                    }
+                    if ($row['neutered'] == 1) {
+                        $healthBadges[] = '<span class="health-badge">✓ Neutered</span>';
+                    }
+                    if (!empty($row['health_status'])) {
+                        $healthBadges[] = '<span class="health-badge description">Description: ' . htmlspecialchars($row['health_status']) . '</span>';
+                    }
+                    
+                    $healthDisplay = !empty($healthBadges) ? implode('', $healthBadges) : '<span class="health-badge none">No health info</span>';
             ?>
             <div class="pet-card">
                 <img src="../uploads/<?php echo htmlspecialchars($image); ?>" 
@@ -662,13 +704,9 @@ function showSlide(n) {
                      class="pet-card-image">
                 <div class="pet-card-content">
                     <h3><?php echo htmlspecialchars($row['name']); ?></h3>
-                    <p class="pet-seller">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                        <?php echo htmlspecialchars($row['username'] ?? 'Unknown'); ?>
-                    </p>
+                    <div class="pet-health-info">
+                        <?php echo $healthDisplay; ?>
+                    </div>
                     <p class="pet-price">₱<?php echo number_format($row['price'], 2); ?></p>
                     <a href="pet-details.php?id=<?php echo $row['id']; ?>" class="view-btn">
                         View Details
@@ -700,12 +738,11 @@ function showSlide(n) {
 
         <div class="pet-grid">
             <?php
-            // Fetch AVAILABLE adoption cats
+            // Fetch AVAILABLE adoption cats with health info
             $adoptionResult = $conn->query("
                 SELECT ac.id, ac.name, ac.breed, ac.age, ac.gender, ac.adoption_fee, 
-                       ac.image_url, ac.status, u.username
+                       ac.image_url, ac.status, ac.vaccinated, ac.neutered, ac.health_status
                 FROM adoption_cats ac
-                LEFT JOIN users u ON ac.user_id = u.id
                 WHERE ac.status IN ('Available', 'Pending')
                 ORDER BY ac.created_at DESC
                 LIMIT 10
@@ -714,6 +751,20 @@ function showSlide(n) {
             if ($adoptionResult && $adoptionResult->num_rows > 0) {
                 while ($cat = $adoptionResult->fetch_assoc()):
                     $image = $cat['image_url'] ?: 'no-image.png';
+                    
+                    // Build health status badges
+                    $healthBadges = [];
+                    if ($cat['vaccinated'] == 1) {
+                        $healthBadges[] = '<span class="health-badge">✓ Vaccinated</span>';
+                    }
+                    if ($cat['neutered'] == 1) {
+                        $healthBadges[] = '<span class="health-badge">✓ Neutered</span>';
+                    }
+                    if (!empty($cat['health_status'])) {
+                        $healthBadges[] = '<span class="health-badge description">Description: ' . htmlspecialchars($cat['health_status']) . '</span>';
+                    }
+                    
+                    $healthDisplay = !empty($healthBadges) ? implode('', $healthBadges) : '<span class="health-badge none">No health info</span>';
             ?>
             <div class="pet-card">
                 <img src="../uploads/<?php echo htmlspecialchars($image); ?>" 
@@ -721,13 +772,9 @@ function showSlide(n) {
                      class="pet-card-image">
                 <div class="pet-card-content">
                     <h3><?php echo htmlspecialchars($cat['name']); ?></h3>
-                    <p class="pet-seller">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                        <?php echo htmlspecialchars($cat['username'] ?? 'Unknown'); ?>
-                    </p>
+                    <div class="pet-health-info">
+                        <?php echo $healthDisplay; ?>
+                    </div>
                     <p class="pet-price">Adoption Fee: ₱<?php echo number_format($cat['adoption_fee'], 2); ?></p>
                     <a href="adoption-cat-details.php?id=<?php echo $cat['id']; ?>" class="view-btn">
                         View Details

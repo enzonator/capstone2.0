@@ -75,6 +75,6 @@ if ($notif_id > 0) {
 }
 
 // If no specific action, redirect to orders page
-header("Location: cart.php");
+header("Location: verify.php");
 exit();
 ?>
