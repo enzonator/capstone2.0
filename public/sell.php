@@ -31,7 +31,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $is_verified) {
     $description = $_POST['description'];
     $latitude = $_POST['latitude'];
     $longitude = $_POST['longitude'];
-    $address = $_POST['address'];
+    $address = !empty($_POST['address']) ? $_POST['address'] : NULL; // Optional additional address info
     
     // Health information
     $vaccinated = isset($_POST['vaccinated']) ? 1 : 0;
@@ -779,13 +779,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $is_verified) {
                     💡 <strong>Tip:</strong> Click "Use My Current Location" or click anywhere on the map to pin your location. You can drag the marker to adjust.
                 </p>
                 
-                <div id="locationStatus" style="display: none;"></div>
-                
                 <button type="button" id="getLocationBtn" class="btn-location">
                     📍 Use My Current Location
                 </button>
                 
-                <input type="hidden" id="address" name="address" required>
+                <!-- Hidden fields for coordinates -->
                 <input type="hidden" id="latitude" name="latitude" required>
                 <input type="hidden" id="longitude" name="longitude" required>
 
@@ -795,8 +793,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $is_verified) {
 
                 <div id="location-info" class="location-info" style="display: none;">
                     <strong>📍 Selected Location:</strong>
-                    <span id="loc-address">Not set</span>
+                    <span id="loc-city">Not set</span>
                     <span id="loc-coords"></span>
+                </div>
+
+                <!-- Additional Address Information Field -->
+                <div class="form-group" style="margin-top: 20px;">
+                    <label class="form-label">Additional Address Information (Optional)</label>
+                    <input type="text" 
+                           name="address" 
+                           id="address" 
+                           class="form-input" 
+                           placeholder="e.g., Near SM Mall, Beside Coffee Shop, Building Name, etc.">
+                    <small style="color: #7d6d5d; font-size: 13px; margin-top: 5px; display: block;">
+                        Add any additional details to help buyers find the location (landmark, building name, etc.)
+                    </small>
                 </div>
             </div>
 
@@ -964,22 +975,12 @@ $(document).ready(function() {
     var marker = null;
     var isLocationSet = false;
 
-    // Function to show location status
-    function showLocationStatus(message, type = 'info') {
-        const statusDiv = $('#locationStatus');
-        const statusClass = type === 'success' ? 'success' : type === 'error' ? 'error' : '';
-        const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : '⏳';
-        
-        statusDiv.html(`<div class="location-status ${statusClass}">${icon} ${message}</div>`);
-        statusDiv.show();
-    }
+    // Function to show location status (removed - no longer showing status messages)
 
-    // Enhanced reverse geocoding with better address formatting
+    // Enhanced reverse geocoding - Only get City, Region, Country
     async function reverseGeocode(lat, lon) {
-        showLocationStatus('Fetching location details...', 'info');
-        
         try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`, {
                 headers: {
                     'User-Agent': 'PetMarketplace/1.0'
                 }
@@ -991,39 +992,33 @@ $(document).ready(function() {
                 throw new Error('Location not found');
             }
             
-            // Build comprehensive address
+            // Build general location (City, Region, Country only)
             const addr = data.address || {};
-            let addressParts = [];
-            
-            // Street level
-            if (addr.house_number) addressParts.push(addr.house_number);
-            if (addr.road) addressParts.push(addr.road);
-            
-            // Local area
-            if (addr.neighbourhood) addressParts.push(addr.neighbourhood);
-            else if (addr.suburb) addressParts.push(addr.suburb);
+            let locationParts = [];
             
             // City/Municipality
-            if (addr.city) addressParts.push(addr.city);
-            else if (addr.municipality) addressParts.push(addr.municipality);
-            else if (addr.town) addressParts.push(addr.town);
+            if (addr.city) locationParts.push(addr.city);
+            else if (addr.municipality) locationParts.push(addr.municipality);
+            else if (addr.town) locationParts.push(addr.town);
+            else if (addr.county) locationParts.push(addr.county);
             
-            // Region
-            if (addr.state) addressParts.push(addr.state);
-            else if (addr.province) addressParts.push(addr.province);
+            // Region/State
+            if (addr.state) locationParts.push(addr.state);
+            else if (addr.province) locationParts.push(addr.province);
+            else if (addr.region) locationParts.push(addr.region);
             
             // Country
-            if (addr.country) addressParts.push(addr.country);
+            if (addr.country) locationParts.push(addr.country);
             
-            let formattedAddress = addressParts.join(', ') || data.display_name;
+            let generalLocation = locationParts.join(', ') || 'Location';
             
             return {
-                address: formattedAddress,
-                city: addr.city || addr.municipality || addr.town || 'Not available',
+                generalLocation: generalLocation,
+                city: addr.city || addr.municipality || addr.town || addr.county || 'Not available',
+                region: addr.state || addr.province || addr.region || 'Not available',
                 country: addr.country || 'Not available',
                 lat: parseFloat(data.lat),
-                lon: parseFloat(data.lon),
-                display_name: data.display_name
+                lon: parseFloat(data.lon)
             };
         } catch (error) {
             console.error('Geocoding error:', error);
@@ -1031,56 +1026,47 @@ $(document).ready(function() {
         }
     }
 
-    // Function to update location in form with detailed info
+    // Function to update location in form with general info only
     async function updateLocation(lat, lon) {
         try {
             const result = await reverseGeocode(lat, lon);
             
-            // Update hidden form fields
-            $("#address").val(result.address);
+            // Update hidden form fields (coordinates only)
             $("#latitude").val(result.lat);
             $("#longitude").val(result.lon);
 
-            // Update visible location info with enhanced details
-            $("#loc-address").html(`
-                <strong>Address:</strong> ${result.address}<br>
-                <strong>City:</strong> ${result.city}<br>
-                <strong>Country:</strong> ${result.country}
+            // Update visible location info with general details only
+            $("#loc-city").html(`
+                <strong>General Area:</strong> ${result.generalLocation}<br>
+                <em style="font-size: 13px; color: #666;">Exact address is not displayed for privacy</em>
             `);
             $("#loc-coords").text(`📍 Coordinates: ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)}`);
             $("#location-info").show();
             
             isLocationSet = true;
-            showLocationStatus('Location set successfully! 🎯', 'success');
             
-            // Update marker popup with detailed info
+            // Update marker popup with general info
             if (marker) {
                 marker.bindPopup(`
                     <div style="min-width: 200px;">
                         <strong style="color: #8b6f47; font-size: 14px;">📍 Selected Location</strong><br><br>
-                        <strong>Address:</strong><br>
-                        ${result.address}<br><br>
+                        <strong>Area:</strong><br>
+                        ${result.generalLocation}<br><br>
                         <strong>Coordinates:</strong><br>
                         ${result.lat.toFixed(6)}, ${result.lon.toFixed(6)}<br><br>
-                        <em style="font-size: 12px; color: #666;">💡 Drag marker to adjust</em>
+                        <em style="font-size: 11px; color: #666;">💡 Drag marker to adjust<br>
+                        📝 Add specific details in "Additional Address" field below</em>
                     </div>
                 `).openPopup();
             }
-            
-            // Auto-hide success message after 3 seconds
-            setTimeout(() => {
-                $('#locationStatus').fadeOut();
-            }, 3000);
         } catch (err) {
             console.error("Location update error:", err);
-            showLocationStatus('Could not get full address details', 'error');
             
             // Fallback: Still save coordinates
-            $("#address").val(`Location: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
             $("#latitude").val(lat);
             $("#longitude").val(lon);
-            $("#loc-address").text("Address details unavailable");
-            $("#loc-coords").text(`📍 Coordinates: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+            $("#loc-city").html(`<strong>Location:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+            $("#loc-coords").text(`📍 Coordinates set`);
             $("#location-info").show();
             isLocationSet = true;
             
@@ -1133,9 +1119,6 @@ $(document).ready(function() {
         
         addMarker(lat, lon);
         updateLocation(lat, lon);
-        
-        // Visual feedback
-        showLocationStatus('Location pinned! 📌', 'success');
     });
 
     // "Use My Current Location" button with improved error handling
@@ -1150,16 +1133,12 @@ $(document).ready(function() {
             return;
         }
 
-        showLocationStatus('Requesting your location...', 'info');
         $(this).prop('disabled', true).html('⏳ Getting location...');
 
         navigator.geolocation.getCurrentPosition(
             function(position) {
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
-                const accuracy = position.coords.accuracy;
-
-                console.log('✅ Location acquired:', { lat, lon, accuracy: Math.round(accuracy) + 'm' });
 
                 // Center map with smooth animation
                 map.flyTo([lat, lon], 17, {
@@ -1170,11 +1149,6 @@ $(document).ready(function() {
                 updateLocation(lat, lon);
 
                 $('#getLocationBtn').prop('disabled', false).html('📍 Use My Current Location');
-                
-                // Show accuracy indicator
-                if (accuracy) {
-                    showLocationStatus(`Location locked! (±${Math.round(accuracy)}m accuracy)`, 'success');
-                }
             },
             function(error) {
                 console.error('❌ Geolocation error:', error);
@@ -1207,7 +1181,6 @@ $(document).ready(function() {
                     confirmButtonText: 'OK'
                 });
                 
-                showLocationStatus('Please click on the map to set location', 'error');
                 $('#getLocationBtn').prop('disabled', false).html('📍 Use My Current Location');
             },
             {

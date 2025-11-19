@@ -528,29 +528,6 @@ document.addEventListener('DOMContentLoaded', function() {
     line-height: 1.6;
 }
 
-.health-status-box {
-    background: #e8f5e9;
-    padding: 20px;
-    border-radius: 12px;
-    border-left: 4px solid #4caf50;
-    margin-top: 16px;
-    display: none; /* Hidden since we moved it to health info section */
-}
-
-.health-status-box h3 {
-    color: #2d3748;
-    margin-bottom: 12px;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.health-status-box p {
-    color: #4a5568;
-    line-height: 1.6;
-}
-
 .seller-info {
     display: flex;
     align-items: center;
@@ -693,6 +670,30 @@ document.addEventListener('DOMContentLoaded', function() {
 .map-section h3::before {
     content: "📍";
     font-size: 24px;
+}
+
+/* Additional Address Display Styling */
+.additional-address-box {
+    background: #fff3e0;
+    border: 2px solid #ffe0b2;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.additional-address-box strong {
+    color: #e65100;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.additional-address-box span {
+    color: #5a4438;
+    font-size: 14px;
+    padding-left: 8px;
 }
 
 #map {
@@ -935,42 +936,6 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 /* Reply Form Styles */
-.reply-form {
-    margin-top: 12px;
-    padding: 16px;
-    background: #f9f9f9;
-    border-radius: 8px;
-    border-left: 3px solid #c9a882;
-    display: none;
-}
-
-.reply-form.active {
-    display: block;
-}
-
-.reply-form textarea {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #e2d5c5;
-    border-radius: 6px;
-    font-family: inherit;
-    font-size: 13px;
-    resize: vertical;
-    min-height: 60px;
-    transition: border-color 0.3s ease;
-}
-
-.reply-form textarea:focus {
-    outline: none;
-    border-color: #c9a882;
-}
-
-.reply-form-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-}
-
 .reply-form button {
     padding: 8px 16px;
     border: none;
@@ -1395,6 +1360,15 @@ document.addEventListener('DOMContentLoaded', function() {
             <!-- Pet Location -->
             <div class="map-section">
                 <h3>Location</h3>
+                
+                <!-- Additional Address Information Display -->
+                <?php if (!empty($pet['address'])): ?>
+                    <div class="additional-address-box">
+                        <strong>📌 Additional Location Info:</strong>
+                        <span><?php echo htmlspecialchars($pet['address']); ?></span>
+                    </div>
+                <?php endif; ?>
+                
                 <?php if (!empty($pet['latitude']) && !empty($pet['longitude'])): ?>
                     <div id="map"></div>
                 <?php else: ?>
@@ -1524,11 +1498,18 @@ document.addEventListener("DOMContentLoaded", function () {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
+    // Create popup content with additional address if available
+    let popupContent = "<b><?= htmlspecialchars($pet['name']); ?></b><br>Pet Location";
+    
+    <?php if (!empty($pet['address'])): ?>
+        popupContent += "<br><br><strong>Additional Info:</strong><br><?= htmlspecialchars($pet['address']); ?>";
+    <?php endif; ?>
+
     L.marker([lat, lon]).addTo(map)
-        .bindPopup("<b><?= htmlspecialchars($pet['name']); ?></b><br>Pet Location")
+        .bindPopup(popupContent)
         .openPopup();
 });
 </script>
 <?php endif; ?>
 
-<?php include_once "../includes/footer.php"; ?>
+<?php include_once "../includes/footer.php"; ?> {

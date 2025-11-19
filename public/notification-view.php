@@ -28,9 +28,36 @@ if ($notif_id > 0) {
     $notification = $result->fetch_assoc();
     
     if ($notification) {
-        // Redirect based on notification type
+        // Handle adoption application approval - redirect to messaging
+        if ($notification['type'] === 'adoption_approved' && !empty($notification['application_id'])) {
+            // Get the cat owner's ID from the application
+            $appSql = "SELECT ac.user_id as cat_owner_id, aa.cat_id 
+                      FROM adoption_applications aa
+                      JOIN adoption_cats ac ON aa.cat_id = ac.id
+                      WHERE aa.id = ?";
+            $appStmt = $conn->prepare($appSql);
+            $appStmt->bind_param("i", $notification['application_id']);
+            $appStmt->execute();
+            $appResult = $appStmt->get_result();
+            
+            if ($appResult->num_rows > 0) {
+                $appData = $appResult->fetch_assoc();
+                // Redirect to message-adopter page with cat owner info
+                header("Location: message-adopter.php?cat_id=" . $appData['cat_id'] . "&owner_id=" . $appData['cat_owner_id']);
+                exit();
+            }
+        }
+        
+        // Handle adoption application rejection or other status updates
+        if (($notification['type'] === 'adoption_rejected' || $notification['type'] === 'adoption_status_update') 
+            && !empty($notification['application_id'])) {
+            // Redirect to view the application details
+            header("Location: view-my-application.php?id=" . $notification['application_id']);
+            exit();
+        }
+        
+        // Handle original adoption application notification (for cat owners)
         if ($notification['type'] === 'adoption_application') {
-            // Get the most recent application for this cat that the user owns
             if (!empty($notification['cat_id'])) {
                 $appSql = "SELECT aa.id 
                           FROM adoption_applications aa
@@ -47,27 +74,78 @@ if ($notif_id > 0) {
                     header("Location: view-adoption-application.php?id=" . $appData['id']);
                     exit();
                 } else {
-                    // Debug: Log the issue
-                    error_log("No application found for cat_id: " . $notification['cat_id'] . " and user_id: " . $user_id);
-                    // Fallback to applications list
                     header("Location: manage-adoption-applications.php");
                     exit();
                 }
-            } else {
-                // No cat_id in notification
-                error_log("No cat_id in notification: " . $notif_id);
-                header("Location: manage-adoption-applications.php");
-                exit();
             }
-        } elseif ($notification['type'] === 'new_order' && !empty($notification['order_id'])) {
+        }
+        
+        // Handle order notifications
+        if ($notification['type'] === 'new_order' && !empty($notification['order_id'])) {
             header("Location: order-details.php?id=" . $notification['order_id']);
             exit();
-        } elseif ($notification['type'] === 'new_message' && !empty($notification['pet_id'])) {
-            // Redirect to messages page for this specific pet
-            header("Location: my-messages.php");
-            exit();
-        } elseif (strpos($notification['type'], 'order_') === 0 && !empty($notification['order_id'])) {
-            // Handle all order-related notifications
+        }
+        
+        // Handle adoption message notifications
+        if ($notification['type'] === 'adoption_message') {
+            if (!empty($notification['application_id'])) {
+                // Get the application details to determine who should see what
+                $appSql = "SELECT aa.user_id as applicant_user_id, ac.user_id as cat_owner_id, aa.cat_id
+                          FROM adoption_applications aa
+                          JOIN adoption_cats ac ON aa.cat_id = ac.id
+                          WHERE aa.id = ?";
+                $appStmt = $conn->prepare($appSql);
+                $appStmt->bind_param("i", $notification['application_id']);
+                $appStmt->execute();
+                $appResult = $appStmt->get_result();
+                
+                if ($appResult->num_rows > 0) {
+                    $appData = $appResult->fetch_assoc();
+                    
+                    // If current user is the cat owner, redirect to message-cat-owner
+                    if ($user_id == $appData['cat_owner_id']) {
+                        header("Location: message-cat-owner.php?cat_id=" . $appData['cat_id'] . "&adopter_id=" . $appData['applicant_user_id']);
+                        exit();
+                    }
+                    // If current user is the adopter, redirect to message-adopter
+                    elseif ($user_id == $appData['applicant_user_id']) {
+                        header("Location: message-adopter.php?cat_id=" . $appData['cat_id'] . "&owner_id=" . $appData['cat_owner_id']);
+                        exit();
+                    }
+                }
+            } 
+            // Fallback: Try to use cat_id if application_id is missing
+            elseif (!empty($notification['cat_id'])) {
+                // Find the approved application for this cat and user
+                $appSql = "SELECT aa.id, aa.user_id as applicant_user_id, ac.user_id as cat_owner_id, aa.cat_id
+                          FROM adoption_applications aa
+                          JOIN adoption_cats ac ON aa.cat_id = ac.id
+                          WHERE aa.cat_id = ? AND (aa.user_id = ? OR ac.user_id = ?) AND aa.status = 'Approved'
+                          ORDER BY aa.updated_at DESC LIMIT 1";
+                $appStmt = $conn->prepare($appSql);
+                $appStmt->bind_param("iii", $notification['cat_id'], $user_id, $user_id);
+                $appStmt->execute();
+                $appResult = $appStmt->get_result();
+                
+                if ($appResult->num_rows > 0) {
+                    $appData = $appResult->fetch_assoc();
+                    
+                    // If current user is the cat owner, redirect to message-cat-owner
+                    if ($user_id == $appData['cat_owner_id']) {
+                        header("Location: message-cat-owner.php?cat_id=" . $appData['cat_id'] . "&adopter_id=" . $appData['applicant_user_id']);
+                        exit();
+                    }
+                    // If current user is the adopter, redirect to message-adopter
+                    elseif ($user_id == $appData['applicant_user_id']) {
+                        header("Location: message-adopter.php?cat_id=" . $appData['cat_id'] . "&owner_id=" . $appData['cat_owner_id']);
+                        exit();
+                    }
+                }
+            }
+        }
+        
+        // Handle all order-related notifications
+        if (strpos($notification['type'], 'order_') === 0 && !empty($notification['order_id'])) {
             header("Location: order-details.php?id=" . $notification['order_id']);
             exit();
         }

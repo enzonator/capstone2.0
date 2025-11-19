@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
+    // Get form data
     $cat_id = intval($_POST['cat_id']);
     $applicant_name = $_POST['applicant_name'];
     $email = $_POST['email'];
@@ -67,6 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $introduction_steps = $_POST['introduction_steps'] ?? '';
     $family_support = $_POST['family_support'] ?? '';
     
+    // IMPORTANT: Capture the logged-in user's ID
+    $applicant_user_id = $current_user_id;
+    
     // First, get cat info for notification
     $catInfoSql = "SELECT ac.*, u.id as owner_id, u.username as owner_name 
                    FROM adoption_cats ac 
@@ -78,12 +82,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $catInfoResult = $catInfoStmt->get_result();
     $catInfo = $catInfoResult->fetch_assoc();
     
+    // UPDATED SQL: Now includes user_id column
     $sql = "INSERT INTO adoption_applications 
-            (cat_id, applicant_name, email, phone, address, has_other_pets, other_pets_details, 
+            (cat_id, user_id, applicant_name, email, phone, address, has_other_pets, other_pets_details, 
             home_type, has_yard, experience_with_cats, reason_for_adoption, veterinarian_info, `references`,
             living_with, household_allergic, responsible_person, financially_responsible, vacation_care, 
             hours_alone, introduction_steps, family_support)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     
     $stmt = $conn->prepare($sql);
     
@@ -91,8 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("SQL Error: " . $conn->error);
     }
     
-    $stmt->bind_param("issssisssssssssssssss", 
-        $cat_id, $applicant_name, $email, $phone, $address, 
+    // UPDATED bind_param: Added 'i' for user_id (integer) at the beginning
+    $stmt->bind_param("iissssisssssssssssssss", 
+        $cat_id, $applicant_user_id, $applicant_name, $email, $phone, $address, 
         $has_other_pets, $other_pets_details, $home_type, $has_yard,
         $experience_with_cats, $reason_for_adoption, $veterinarian_info, $references,
         $living_with, $household_allergic, $responsible_person, $financially_responsible, 
@@ -138,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = "Error submitting application. Please try again.";
     }
 }
+
 
 // Get cat information
 $cat_id = $_GET['cat_id'] ?? 0;

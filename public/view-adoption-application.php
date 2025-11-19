@@ -15,7 +15,6 @@ $application_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 error_log("Viewing application - user_id: " . $user_id . ", application_id: " . $application_id);
 
 // Fetch application details
-// Fetch application details
 $sql = "SELECT aa.*, ac.name as cat_name, ac.breed, ac.age, ac.gender, ac.adoption_fee,
         ac.user_id as cat_owner_id,
         u.username as owner_username, u.email as owner_email
@@ -265,6 +264,22 @@ include_once "../includes/header.php";
         font-weight: 700;
     }
 
+    .success-alert {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .success-alert i {
+        font-size: 1.5em;
+    }
+
     @media (max-width: 768px) {
         .info-grid {
             grid-template-columns: 1fr;
@@ -286,6 +301,13 @@ include_once "../includes/header.php";
 </style>
 
 <div class="container">
+    <?php if (isset($_GET['updated'])): ?>
+    <div class="success-alert">
+        <i class="bi bi-check-circle-fill"></i>
+        <span>Application status updated successfully! The applicant has been notified.</span>
+    </div>
+    <?php endif; ?>
+
     <div class="application-wrapper">
         <div class="application-header">
             <h1>📋 Adoption Application</h1>
@@ -456,6 +478,13 @@ include_once "../includes/header.php";
             <!-- Action Buttons -->
             <div class="action-buttons">
                 <a href="manage-adoption-applications.php" class="btn btn-secondary">← Back to Applications</a>
+                
+                <?php if ($application['status'] === 'Approved'): ?>
+                    <a href="message-cat-owner.php?cat_id=<?php echo $application['cat_id']; ?>&adopter_id=<?php echo $application['user_id']; ?>" 
+                       class="btn" style="background: #28a745; color: white;">
+                        💬 Message Adopter
+                    </a>
+                <?php endif; ?>
                 
                 <?php if ($application['status'] === 'Pending'): ?>
                     <button class="btn btn-approve" onclick="updateStatus('Approved')">✓ Approve Application</button>

@@ -202,6 +202,54 @@ if (isset($_SESSION['user_id'])) {
         z-index: 1;
     }
 
+    /* Pets Nearby Section */
+    .pets-nearby-section {
+        background: linear-gradient(135deg, #5a4a3a 0%, #7d6d5d 100%);
+        padding: 60px 20px;
+        text-align: center;
+    }
+
+    .pets-nearby-content {
+        max-width: 700px;
+        margin: 0 auto;
+    }
+
+    .pets-nearby-section h2 {
+        color: #EADDCA;
+        font-size: 36px;
+        font-weight: 700;
+        margin-bottom: 20px;
+    }
+
+    .pets-nearby-section p {
+        color: #EADDCA;
+        font-size: 18px;
+        margin-bottom: 35px;
+        opacity: 0.95;
+        line-height: 1.6;
+    }
+
+    .nearby-btn {
+        display: inline-block;
+        background: #EADDCA;
+        color: #5a4a3a;
+        padding: 16px 45px;
+        border-radius: 50px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 18px;
+        transition: all 0.3s ease;
+        box-shadow: 0 6px 20px rgba(234, 221, 202, 0.3);
+        border: 2px solid #EADDCA;
+    }
+
+    .nearby-btn:hover {
+        background: transparent;
+        color: #EADDCA;
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(234, 221, 202, 0.4);
+    }
+
     /* Featured Section */
     .featured-pets {
         padding: 60px 20px;
@@ -503,6 +551,19 @@ if (isset($_SESSION['user_id'])) {
             grid-template-columns: repeat(2, 1fr);
             gap: 15px;
         }
+
+        .pets-nearby-section h2 {
+            font-size: 28px;
+        }
+
+        .pets-nearby-section p {
+            font-size: 16px;
+        }
+
+        .nearby-btn {
+            padding: 14px 35px;
+            font-size: 16px;
+        }
     }
 
     @media (max-width: 480px) {
@@ -541,6 +602,14 @@ if (isset($_SESSION['user_id'])) {
 
         .why-choose-us {
             padding: 60px 20px;
+        }
+
+        .pets-nearby-section {
+            padding: 40px 20px;
+        }
+
+        .pets-nearby-section h2 {
+            font-size: 24px;
         }
     }
 </style>
@@ -776,7 +845,7 @@ function showSlide(n) {
                         <?php echo $healthDisplay; ?>
                     </div>
                     <p class="pet-price">Adoption Fee: ₱<?php echo number_format($cat['adoption_fee'], 2); ?></p>
-                    <a href="adoption-cat-details.php?id=<?php echo $cat['id']; ?>" class="view-btn">
+                    <a href="adoption-form.php?cat_id=<?php echo $cat['id']; ?>&cat_name=<?php echo urlencode($cat['name']); ?>" class="view-btn">
                         View Details
                     </a>
                 </div>
@@ -792,6 +861,22 @@ function showSlide(n) {
         <!-- Browse More Button -->
         <div class="browse-more-container">
             <a href="adoption.php" class="browse-more-btn">Browse More Adoption Cats →</a>
+        </div>
+    </div>
+</section>
+
+<!-- Show Pets Nearby Section -->
+<section class="pets-nearby-section" style="margin: 60px 0;">
+    <div class="container">
+        <div class="pets-nearby-content">
+            <h2>📍 Find Pets Near You</h2>
+            <p>
+                Discover available pets and adoption cats in your area with our interactive map. 
+                See their exact locations and find your perfect companion nearby!
+            </p>
+            <a href="map_pets.php" class="nearby-btn">
+                🗺️ Show Pets Nearby
+            </a>
         </div>
     </div>
 </section>

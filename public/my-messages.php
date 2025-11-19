@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Fetch list of conversations (with unread count)
+// Fetch list of pet sales conversations (with unread count)
 $sql = "
     SELECT 
         m.pet_id,
@@ -28,7 +28,8 @@ $sql = "
                 WHEN m.receiver_id = ? AND m.is_read = 0 THEN 1 
                 ELSE 0 
             END
-        ) AS unread_count
+        ) AS unread_count,
+        'pet_sale' as conversation_type
     FROM messages m
     JOIN pets p ON m.pet_id = p.id
     JOIN users u ON u.id = 
@@ -38,13 +39,56 @@ $sql = "
         END
     WHERE m.sender_id = ? OR m.receiver_id = ?
     GROUP BY m.pet_id, other_user_id
-    ORDER BY last_message_time DESC
 ";
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("iiiii", $user_id, $user_id, $user_id, $user_id, $user_id);
 $stmt->execute();
-$conversations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$pet_conversations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Fetch list of adoption conversations (with unread count)
+$adoptionSql = "
+    SELECT 
+        am.cat_id as pet_id,
+        ac.name AS pet_name,
+        CASE 
+            WHEN am.sender_id = ? THEN am.receiver_id
+            ELSE am.sender_id
+        END AS other_user_id,
+        u.username AS other_username,
+        MAX(am.created_at) AS last_message_time,
+        SUBSTRING_INDEX(MAX(CONCAT(am.created_at, '|', am.message)), '|', -1) AS last_message,
+        SUM(
+            CASE 
+                WHEN am.receiver_id = ? AND am.is_read = 0 THEN 1 
+                ELSE 0 
+            END
+        ) AS unread_count,
+        'adoption' as conversation_type,
+        ac.user_id as cat_owner_id
+    FROM adoption_messages am
+    JOIN adoption_cats ac ON am.cat_id = ac.id
+    JOIN users u ON u.id = 
+        CASE 
+            WHEN am.sender_id = ? THEN am.receiver_id
+            ELSE am.sender_id
+        END
+    WHERE am.sender_id = ? OR am.receiver_id = ?
+    GROUP BY am.cat_id, other_user_id
+";
+
+$adoptionStmt = $conn->prepare($adoptionSql);
+$adoptionStmt->bind_param("iiiii", $user_id, $user_id, $user_id, $user_id, $user_id);
+$adoptionStmt->execute();
+$adoption_conversations = $adoptionStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Merge both conversation types
+$conversations = array_merge($pet_conversations, $adoption_conversations);
+
+// Sort by last message time (most recent first)
+usort($conversations, function($a, $b) {
+    return strtotime($b['last_message_time']) - strtotime($a['last_message_time']);
+});
 
 // Calculate total unread
 $total_unread = array_sum(array_column($conversations, 'unread_count'));
@@ -169,6 +213,11 @@ body {
     overflow: hidden;
 }
 
+.conversation.adoption {
+    border-color: rgba(40, 167, 69, 0.2);
+    background: rgba(40, 167, 69, 0.03);
+}
+
 .conversation::before {
     content: '';
     position: absolute;
@@ -181,10 +230,19 @@ body {
     transition: transform 0.3s ease;
 }
 
+.conversation.adoption::before {
+    background: #28a745;
+}
+
 .conversation:hover {
     background: rgba(139, 111, 71, 0.08);
     border-color: rgba(139, 111, 71, 0.3);
     transform: translateX(8px);
+}
+
+.conversation.adoption:hover {
+    background: rgba(40, 167, 69, 0.08);
+    border-color: rgba(40, 167, 69, 0.3);
 }
 
 .conversation:hover::before {
@@ -210,6 +268,30 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.conversation.adoption .pet {
+    color: #28a745;
+}
+
+.conversation-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-adoption {
+    background: #28a745;
+    color: white;
+}
+
+.badge-sale {
+    background: #8B6F47;
+    color: white;
 }
 
 .conversation .username {
@@ -291,6 +373,7 @@ body {
     font-weight: 600;
     transition: all 0.3s ease;
     box-shadow: 0 2px 8px rgba(139, 111, 71, 0.3);
+    margin: 0 10px;
 }
 
 .empty-messages a:hover {
@@ -354,7 +437,7 @@ body {
                         <span class="unread-count"><?= $total_unread; ?> Unread</span>
                     <?php endif; ?>
                 </h2>
-                <p>Stay connected with sellers and buyers</p>
+                <p>Stay connected with sellers, buyers, and adopters</p>
             </div>
         </div>
 
@@ -362,12 +445,33 @@ body {
         <div class="messages-content">
             <?php if (!empty($conversations)): ?>
                 <?php foreach ($conversations as $c): ?>
-                    <a class="conversation <?= (int)$c['unread_count'] > 0 ? 'has-unread' : ''; ?>" 
-                       href="message-seller.php?pet_id=<?= $c['pet_id']; ?>&seller_id=<?= $c['other_user_id']; ?>">
+                    <?php 
+                    // Determine the correct link based on conversation type
+                    if ($c['conversation_type'] === 'adoption') {
+                        // For adoption messages, determine if user is owner or adopter
+                        if ($user_id == $c['cat_owner_id']) {
+                            // User is the cat owner
+                            $link = "message-cat-owner.php?cat_id={$c['pet_id']}&adopter_id={$c['other_user_id']}";
+                        } else {
+                            // User is the adopter
+                            $link = "message-adopter.php?cat_id={$c['pet_id']}&owner_id={$c['other_user_id']}";
+                        }
+                        $icon = "bi-chat-heart-fill";
+                    } else {
+                        // Pet sale message
+                        $link = "message-seller.php?pet_id={$c['pet_id']}&seller_id={$c['other_user_id']}";
+                        $icon = "bi-paw";
+                    }
+                    ?>
+                    <a class="conversation <?= $c['conversation_type'] === 'adoption' ? 'adoption' : ''; ?> <?= (int)$c['unread_count'] > 0 ? 'has-unread' : ''; ?>" 
+                       href="<?= $link; ?>">
                         <div class="info">
                             <div class="pet">
-                                <i class="bi bi-paw"></i>
+                                <i class="bi <?= $icon; ?>"></i>
                                 <?= htmlspecialchars($c['pet_name']); ?>
+                                <span class="conversation-type-badge <?= $c['conversation_type'] === 'adoption' ? 'badge-adoption' : 'badge-sale'; ?>">
+                                    <?= $c['conversation_type'] === 'adoption' ? 'Adoption' : 'Sale'; ?>
+                                </span>
                             </div>
                             <div class="username">
                                 <i class="bi bi-person-circle"></i>
@@ -393,10 +497,15 @@ body {
                 <div class="empty-messages">
                     <i class="bi bi-chat-left"></i>
                     <h3>No Messages Yet</h3>
-                    <p>Start a conversation with a seller to inquire about their pets!</p>
-                    <a href="products.php">
-                        <i class="bi bi-search"></i> Browse Pets
-                    </a>
+                    <p>Start a conversation with a seller or connect with an adopter!</p>
+                    <div>
+                        <a href="products.php">
+                            <i class="bi bi-search"></i> Browse Pets for Sale
+                        </a>
+                        <a href="adoption.php" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                            <i class="bi bi-heart"></i> Browse Adoptions
+                        </a>
+                    </div>
                 </div>
             <?php endif; ?>
         </div>
